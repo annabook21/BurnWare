@@ -5,7 +5,6 @@
  */
 
 import { CryptoUtils, getAppSecret } from '../utils/crypto-utils';
-import { logger } from '../config/logger';
 
 export class TokenService {
   /**
@@ -13,22 +12,6 @@ export class TokenService {
    */
   static generateLinkToken(): string {
     return CryptoUtils.generateLinkToken(12);
-  }
-
-  /**
-   * Generate anonymous sender ID from request metadata
-   */
-  static generateAnonymousId(ip: string, userAgent: string): string {
-    const salt = getAppSecret();
-    return CryptoUtils.generateAnonymousId(ip, userAgent, salt);
-  }
-
-  /**
-   * Hash IP address for storage
-   */
-  static hashIP(ip: string): string {
-    const salt = getAppSecret();
-    return CryptoUtils.hashIP(ip, salt);
   }
 
   /**

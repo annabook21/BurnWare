@@ -85,16 +85,21 @@ appStack.addDependency(networkStack);
 appStack.addDependency(authStack);
 appStack.addDependency(dataStack);
 
-// Frontend Stack
+// Frontend Stack (depends on Auth + App for Cognito and API URL)
 const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentName}`, {
   env: config.env,
   environment: environmentName,
   domainName: config.domainName,
   certificateArn: config.certificateArn,
   webAclArn: wafStack.webAclArn,
+  cognitoUserPoolId: authStack.userPool,
+  cognitoClientId: authStack.userPoolClient,
+  apiBaseUrl: `http://${appStack.albDnsName}`,
   description: 'CloudFront distribution and S3 bucket for SPA',
 });
 frontendStack.addDependency(wafStack);
+frontendStack.addDependency(authStack);
+frontendStack.addDependency(appStack);
 
 // Observability Stack - simplified for initial deployment
 const observabilityStack = new ObservabilityStack(

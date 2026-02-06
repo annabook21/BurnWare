@@ -34,21 +34,6 @@ export class CryptoUtils {
   }
 
   /**
-   * Hash IP address for privacy
-   */
-  static hashIP(ip: string, salt: string): string {
-    return crypto.createHash('sha256').update(ip + salt).digest('hex');
-  }
-
-  /**
-   * Generate anonymous sender ID
-   */
-  static generateAnonymousId(ip: string, userAgent: string, salt: string): string {
-    const data = `${ip}${userAgent}${salt}`;
-    return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
-  }
-
-  /**
    * Generate secure random string
    */
   static generateRandomString(length: number): string {

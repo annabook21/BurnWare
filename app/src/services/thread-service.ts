@@ -7,7 +7,7 @@
 import { ThreadModel, Thread, CreateThreadData } from '../models/thread-model';
 import { MessageModel } from '../models/message-model';
 import { LinkModel } from '../models/link-model';
-import { TokenService } from './token-service';
+import { CryptoUtils } from '../utils/crypto-utils';
 import { NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
@@ -26,15 +26,15 @@ export class ThreadService {
   /**
    * Create new thread (when anonymous user sends first message)
    */
-  async createThread(linkId: string, senderIp: string, userAgent: string): Promise<Thread> {
+  async createThread(linkId: string): Promise<Thread> {
     // Verify link exists and is active
     const link = await this.linkModel.findById(linkId);
     if (!link) {
       throw new NotFoundError('Link');
     }
 
-    // Generate anonymous sender ID
-    const anonymousId = TokenService.generateAnonymousId(senderIp, userAgent);
+    // Generate random anonymous sender ID (not derived from IP/UA for privacy)
+    const anonymousId = CryptoUtils.generateRandomString(8);
 
     // Create thread
     const threadData: CreateThreadData = {

@@ -24,14 +24,13 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const startTime = Date.now();
 
-  // Log request
+  // Log request — omit IP and User-Agent to protect sender anonymity.
+  // Rate limiting (which needs IP) runs separately via express-rate-limit.
   logger.info('Incoming request', {
     request_id: req.id,
     method: req.method,
     path: req.path,
     query: req.query,
-    user_agent: req.get('user-agent'),
-    ip: req.ip,
     trace_id: getTraceId(),
   });
 

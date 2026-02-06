@@ -13,7 +13,7 @@ import { Dashboard } from './pages/Dashboard';
 import { SendPage } from './pages/SendPage';
 import { LoginWindow } from './components/auth/LoginWindow';
 import styled from 'styled-components';
-import { getCurrentUser } from './config/cognito-config';
+import { getAccessToken } from './config/cognito-config';
 
 const AppContainer = styled.div`
   width: 100vw;
@@ -35,19 +35,15 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already authenticated
-    const checkAuth = () => {
-      const user = getCurrentUser();
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-
-      if (user && token) {
-        user.getSession((err: Error | null, session: { isValid: () => boolean } | null) => {
-          if (!err && session?.isValid()) {
-            setIsAuthenticated(true);
-          }
-          setIsLoading(false);
-        });
-      } else {
+    const checkAuth = async () => {
+      try {
+        const token = await getAccessToken();
+        if (token) {
+          setIsAuthenticated(true);
+        }
+      } catch {
+        // No valid session
+      } finally {
         setIsLoading(false);
       }
     };
@@ -55,7 +51,7 @@ const App: React.FC = () => {
     checkAuth();
   }, []);
 
-  const handleLoginSuccess = (_token: string) => {
+  const handleLoginSuccess = () => {
     setIsAuthenticated(true);
   };
 

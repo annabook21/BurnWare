@@ -16,7 +16,6 @@ export interface Message {
   created_at: Date;
   sender_type: 'anonymous' | 'owner';
   sender_id?: string;
-  ip_hash?: string;
 }
 
 export interface CreateMessageData {
@@ -24,7 +23,6 @@ export interface CreateMessageData {
   content: string;
   sender_type: 'anonymous' | 'owner';
   sender_id?: string;
-  ip_hash?: string;
 }
 
 export class MessageModel {
@@ -39,8 +37,8 @@ export class MessageModel {
    */
   async create(data: CreateMessageData): Promise<Message> {
     const query = `
-      INSERT INTO messages (thread_id, content, sender_type, sender_id, ip_hash)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO messages (thread_id, content, sender_type, sender_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
 
@@ -50,7 +48,6 @@ export class MessageModel {
         data.content,
         data.sender_type,
         data.sender_id || null,
-        data.ip_hash || null,
       ]);
 
       return result.rows[0] as Message;

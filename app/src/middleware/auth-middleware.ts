@@ -15,8 +15,7 @@ declare global {
     interface Request {
       user?: {
         sub: string;
-        email: string;
-        [key: string]: unknown;
+        email?: string;
       };
       id?: string;
     }
@@ -73,11 +72,11 @@ export async function authenticateJWT(
     // Verify JWT
     const payload = await getVerifier().verify(token);
 
-    // Attach user to request
+    // Extract only the claims we need — avoid spreading the full JWT payload
+    // which leaks infrastructure details (iss, token_use, auth_time, origin_jti, etc.)
     req.user = {
       sub: payload.sub,
-      email: payload.email as string,
-      ...payload,
+      email: typeof payload.email === 'string' ? payload.email : undefined,
     };
 
     logger.debug('JWT validated successfully', {
@@ -123,8 +122,7 @@ export async function optionalAuthenticateJWT(
 
     req.user = {
       sub: payload.sub,
-      email: payload.email as string,
-      ...payload,
+      email: typeof payload.email === 'string' ? payload.email : undefined,
     };
 
     next();

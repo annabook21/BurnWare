@@ -1,18 +1,26 @@
 /**
  * Login Window Component
  * Cognito authentication with AIM aesthetic
- * File size: ~220 lines
+ * Supports sign-in, sign-up, confirmation, and forgot password flows
  */
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
 import { aimTheme } from '../../theme/aim-theme';
-import { CognitoUser, AuthenticationDetails } from 'amazon-cognito-identity-js';
-import { userPool } from '../../config/cognito-config';
+import {
+  signIn,
+  signUp,
+  confirmSignUp,
+  resendConfirmationCode,
+  forgotPassword,
+  confirmForgotPassword,
+} from '../../config/cognito-config';
+
+type AuthMode = 'signIn' | 'signUp' | 'confirm' | 'forgotPassword' | 'resetPassword';
 
 interface LoginWindowProps {
-  onLoginSuccess: (token: string) => void;
+  onLoginSuccess: () => void;
 }
 
 const Container = styled.div`
@@ -81,14 +89,6 @@ const Input = styled.input`
   }
 `;
 
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${aimTheme.spacing.sm};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-`;
-
 const Button = styled.button`
   width: 100%;
   padding: 6px;
@@ -119,52 +119,442 @@ const ErrorMessage = styled.div`
   border: 1px solid ${aimTheme.colors.fireRed};
 `;
 
+const SuccessMessage = styled.div`
+  color: #006600;
+  font-size: ${aimTheme.fonts.size.small};
+  margin-top: ${aimTheme.spacing.sm};
+  padding: ${aimTheme.spacing.sm};
+  background: #E0FFE0;
+  border: 1px solid #006600;
+`;
+
+const LinkButton = styled.button`
+  background: none;
+  border: none;
+  color: ${aimTheme.colors.blue};
+  font-family: ${aimTheme.fonts.primary};
+  font-size: ${aimTheme.fonts.size.small};
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+
+  &:hover {
+    color: ${aimTheme.colors.darkBlue};
+  }
+`;
+
+const LinksRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-top: ${aimTheme.spacing.lg};
+`;
+
+const Hint = styled.div`
+  font-size: ${aimTheme.fonts.size.tiny};
+  color: ${aimTheme.colors.darkGray};
+  margin-top: ${aimTheme.spacing.xs};
+`;
+
+const WINDOW_TITLES: Record<AuthMode, string> = {
+  signIn: 'Sign On to BurnWare',
+  signUp: 'Get a Screen Name',
+  confirm: 'Verify Your Email',
+  forgotPassword: 'Forgot Password',
+  resetPassword: 'Reset Password',
+};
+
+const WINDOW_HEIGHTS: Record<AuthMode, number> = {
+  signIn: 520,
+  signUp: 620,
+  confirm: 440,
+  forgotPassword: 420,
+  resetPassword: 540,
+};
+
 export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
+  const [mode, setMode] = useState<AuthMode>('signIn');
   const [email, setEmail] = useState('');
+  const [screenName, setScreenName] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const resetForm = (nextMode: AuthMode, keepEmail = false) => {
+    if (!keepEmail) setEmail('');
+    setScreenName('');
+    setPassword('');
+    setConfirmPassword('');
+    setCode('');
+    setError('');
+    setSuccess('');
+    setMode(nextMode);
+  };
+
+  const doSignIn = async (signInEmail: string, signInPassword: string) => {
+    try {
+      const result = await signIn(signInEmail, signInPassword);
+
+      if (result.isSignedIn) {
+        onLoginSuccess();
+        return;
+      }
+
+      // Handle challenges that require additional steps
+      const step = result.nextStep?.signInStep;
+      if (step === 'CONFIRM_SIGN_UP') {
+        setError('');
+        setSuccess('Your account is not confirmed. Please enter the verification code sent to your email.');
+        setMode('confirm');
+      } else if (step === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        setError('');
+        setSuccess('You need to reset your password.');
+        setMode('forgotPassword');
+      } else {
+        setError('Login failed. Please check your credentials.');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
+      setError(message);
+    }
+    setLoading(false);
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
+    doSignIn(email, password);
+  };
 
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const authDetails = new AuthenticationDetails({
-        Username: email,
-        Password: password,
-      });
-
-      const cognitoUser = new CognitoUser({
-        Username: email,
-        Pool: userPool,
-      });
-
-      cognitoUser.authenticateUser(authDetails, {
-        onSuccess: (session) => {
-          const token = session.getAccessToken().getJwtToken();
-          if (rememberMe) {
-            localStorage.setItem('authToken', token);
-          } else {
-            sessionStorage.setItem('authToken', token);
-          }
-          onLoginSuccess(token);
-        },
-        onFailure: (err) => {
-          setError(err.message || 'Login failed. Please check your credentials.');
-          setLoading(false);
-        },
-      });
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      await signUp(email, password, screenName || undefined);
+      setSuccess('Account created! Check your email for a verification code.');
+      setMode('confirm');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Sign up failed.';
+      setError(message);
+    } finally {
       setLoading(false);
     }
   };
 
+  const handleConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await confirmSignUp(email, code);
+      // Auto sign-in after confirmation
+      if (password) {
+        setSuccess('Email verified! Signing you in...');
+        doSignIn(email, password);
+      } else {
+        setSuccess('Email verified! You can now sign in.');
+        resetForm('signIn', true);
+        setLoading(false);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Verification failed.';
+      setError(message);
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setError('');
+    setSuccess('');
+    try {
+      await resendConfirmationCode(email);
+      setSuccess('A new verification code has been sent to your email.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resend code.';
+      setError(message);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await forgotPassword(email);
+      setSuccess('A password reset code has been sent to your email.');
+      setMode('resetPassword');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to send reset code.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await confirmForgotPassword(email, code, password);
+      setSuccess('Password reset! You can now sign in with your new password.');
+      resetForm('signIn', true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Password reset failed.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderSignIn = () => (
+    <Form onSubmit={handleSignIn}>
+      <Field>
+        <Label>Email:</Label>
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoFocus
+        />
+      </Field>
+
+      <Field>
+        <Label>Password:</Label>
+        <Input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </Field>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <Button type="submit" disabled={loading || !email || !password}>
+        {loading ? 'Signing On...' : 'Sign On'}
+      </Button>
+
+      <LinksRow>
+        <LinkButton type="button" onClick={() => resetForm('signUp', true)}>
+          Get a Screen Name
+        </LinkButton>
+        <LinkButton type="button" onClick={() => resetForm('forgotPassword', true)}>
+          Forgot Password?
+        </LinkButton>
+      </LinksRow>
+    </Form>
+  );
+
+  const renderSignUp = () => (
+    <Form onSubmit={handleSignUp}>
+      <Field>
+        <Label>Screen Name:</Label>
+        <Input
+          type="text"
+          value={screenName}
+          onChange={(e) => setScreenName(e.target.value)}
+          placeholder="Optional"
+          autoFocus
+          maxLength={64}
+        />
+      </Field>
+
+      <Field>
+        <Label>Email:</Label>
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </Field>
+
+      <Field>
+        <Label>Password:</Label>
+        <Input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+      </Field>
+
+      <Field>
+        <Label>Confirm Password:</Label>
+        <Input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
+      </Field>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <Button type="submit" disabled={loading || !email || !password || !confirmPassword}>
+        {loading ? 'Creating Account...' : 'Create Account'}
+      </Button>
+
+      <LinksRow>
+        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
+          Already have an account? Sign In
+        </LinkButton>
+      </LinksRow>
+    </Form>
+  );
+
+  const renderConfirm = () => (
+    <Form onSubmit={handleConfirm}>
+      <Field>
+        <Label>Verification Code:</Label>
+        <Input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Enter 6-digit code"
+          required
+          autoFocus
+          maxLength={6}
+        />
+        <Hint>Check your email for the verification code</Hint>
+      </Field>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <Button type="submit" disabled={loading || !code}>
+        {loading ? 'Verifying...' : 'Verify Email'}
+      </Button>
+
+      <LinksRow>
+        <LinkButton type="button" onClick={handleResendCode}>
+          Resend Code
+        </LinkButton>
+        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
+          Back to Sign In
+        </LinkButton>
+      </LinksRow>
+    </Form>
+  );
+
+  const renderForgotPassword = () => (
+    <Form onSubmit={handleForgotPassword}>
+      <Field>
+        <Label>Email:</Label>
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoFocus
+        />
+        <Hint>We'll send a password reset code to this email</Hint>
+      </Field>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <Button type="submit" disabled={loading || !email}>
+        {loading ? 'Sending Code...' : 'Send Reset Code'}
+      </Button>
+
+      <LinksRow>
+        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
+          Back to Sign In
+        </LinkButton>
+      </LinksRow>
+    </Form>
+  );
+
+  const renderResetPassword = () => (
+    <Form onSubmit={handleResetPassword}>
+      <Field>
+        <Label>Reset Code:</Label>
+        <Input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Enter code from email"
+          required
+          autoFocus
+          maxLength={6}
+        />
+      </Field>
+
+      <Field>
+        <Label>New Password:</Label>
+        <Input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+      </Field>
+
+      <Field>
+        <Label>Confirm New Password:</Label>
+        <Input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
+      </Field>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <Button type="submit" disabled={loading || !code || !password || !confirmPassword}>
+        {loading ? 'Resetting...' : 'Reset Password'}
+      </Button>
+
+      <LinksRow>
+        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
+          Back to Sign In
+        </LinkButton>
+      </LinksRow>
+    </Form>
+  );
+
+  const renderers: Record<AuthMode, () => React.ReactNode> = {
+    signIn: renderSignIn,
+    signUp: renderSignUp,
+    confirm: renderConfirm,
+    forgotPassword: renderForgotPassword,
+    resetPassword: renderResetPassword,
+  };
+
   return (
-    <WindowFrame title="🔥 Sign On to BurnWare" width={440} height={480}>
+    <WindowFrame title={WINDOW_TITLES[mode]} width={440} height={WINDOW_HEIGHTS[mode]}>
       <Container>
         <LogoSection>
           <Logo src="/burnware-logo.png" alt="BurnWare" />
@@ -172,45 +562,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
           <Subtitle>Anonymous Inbox System</Subtitle>
         </LogoSection>
 
-        <Form onSubmit={handleSubmit}>
-          <Field>
-            <Label>Email:</Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-            />
-          </Field>
-
-          <Field>
-            <Label>Password:</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </Field>
-
-          <Field>
-            <CheckboxLabel>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              <span>Remember Me</span>
-            </CheckboxLabel>
-          </Field>
-
-          {error && <ErrorMessage>{error}</ErrorMessage>}
-
-          <Button type="submit" disabled={loading || !email || !password}>
-            {loading ? 'Signing On...' : 'Sign On'}
-          </Button>
-        </Form>
+        {renderers[mode]()}
       </Container>
     </WindowFrame>
   );

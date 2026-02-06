@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { ChatWindow } from '../aim-ui/ChatWindow';
 import axios from 'axios';
 import { awsConfig } from '../../config/aws-config';
+import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import type { Thread } from '../../types';
 
@@ -40,7 +41,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
   const fetchThreads = async () => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       const response = await axios.get(
         `${awsConfig.api.baseUrl}/api/v1/dashboard/links/${linkId}/threads`,
         {
@@ -58,7 +59,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       await axios.post(
         `${awsConfig.api.baseUrl}/api/v1/dashboard/threads/${threadId}/reply`,
         { message },
@@ -76,7 +77,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
   const handleBurn = async (threadId: string) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       await axios.post(
         `${awsConfig.api.baseUrl}/api/v1/dashboard/threads/${threadId}/burn`,
         {},

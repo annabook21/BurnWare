@@ -25,6 +25,12 @@ export interface FrontendStackProps extends StackProps {
   domainName: string;
   certificateArn?: string;
   webAclArn?: string;
+  /** Cognito User Pool ID (from Auth stack) */
+  cognitoUserPoolId: string;
+  /** Cognito App Client ID (from Auth stack) */
+  cognitoClientId: string;
+  /** API base URL e.g. http://alb-dns-name (from App stack ALB) */
+  apiBaseUrl: string;
 }
 
 export class FrontendStack extends Stack {
@@ -35,7 +41,7 @@ export class FrontendStack extends Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, webAclArn } = props;
+    const { environment, domainName, certificateArn, webAclArn, cognitoUserPoolId, cognitoClientId, apiBaseUrl } = props;
 
     // Create S3 bucket for SPA assets
     // https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/deploy-a-react-based-single-page-application-to-amazon-s3-and-cloudfront.html
@@ -143,15 +149,24 @@ export class FrontendStack extends Stack {
             command: [
               'sh',
               '-c',
-              '(test -f package-lock.json && npm ci || npm install) && npm run build && cp -r dist/* /asset-output/',
+              `VITE_COGNITO_USER_POOL_ID="${cognitoUserPoolId}" VITE_COGNITO_CLIENT_ID="${cognitoClientId}" VITE_API_BASE_URL="${apiBaseUrl}" (test -f package-lock.json && npm ci || npm install) && npm run build && cp -r dist/* /asset-output/`,
             ],
             user: 'root',
-              local: {
-                tryBundle(outputDir: string): boolean {
-                  try {
-                    const hasLock = fs.existsSync(path.join(frontendPath, 'package-lock.json'));
-                    execSync(hasLock ? 'npm ci' : 'npm install', { cwd: frontendPath, stdio: 'inherit' });
-                  execSync('npm run build', { cwd: frontendPath, stdio: 'inherit' });
+            local: {
+              tryBundle(outputDir: string): boolean {
+                try {
+                  const hasLock = fs.existsSync(path.join(frontendPath, 'package-lock.json'));
+                  execSync(hasLock ? 'npm ci' : 'npm install', { cwd: frontendPath, stdio: 'inherit' });
+                  execSync('npm run build', {
+                    cwd: frontendPath,
+                    stdio: 'inherit',
+                    env: {
+                      ...process.env,
+                      VITE_COGNITO_USER_POOL_ID: cognitoUserPoolId,
+                      VITE_COGNITO_CLIENT_ID: cognitoClientId,
+                      VITE_API_BASE_URL: apiBaseUrl,
+                    },
+                  });
                   const distPath = path.join(frontendPath, 'dist');
                   if (fs.existsSync(distPath)) {
                     execSync(`cp -r "${distPath}"/* "${outputDir}/"`, { stdio: 'inherit' });

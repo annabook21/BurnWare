@@ -48,14 +48,15 @@ CREATE TABLE threads (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   burned BOOLEAN NOT NULL DEFAULT FALSE,
   message_count INTEGER NOT NULL DEFAULT 0,
-  sender_anonymous_id VARCHAR(64) NOT NULL,  -- Hashed sender identifier
+  sender_anonymous_id VARCHAR(64) NOT NULL,  -- Random per-thread identifier (not derived from sender data)
   CONSTRAINT chk_sender_id_length CHECK (char_length(sender_anonymous_id) >= 8)
 );
 
 CREATE INDEX idx_threads_link_id ON threads(link_id);
 CREATE INDEX idx_threads_created_at ON threads(created_at);
 CREATE INDEX idx_threads_burned ON threads(burned) WHERE burned = FALSE;
-CREATE INDEX idx_threads_sender ON threads(sender_anonymous_id);
+-- Removed: idx_threads_sender index — sender_anonymous_id is random per-thread,
+-- cross-thread sender lookups are intentionally not supported for anonymity.
 
 -- Messages table (individual messages in threads)
 CREATE TABLE messages (
@@ -65,7 +66,6 @@ CREATE TABLE messages (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('anonymous', 'owner')),
   sender_id VARCHAR(128),  -- Cognito sub for owner, NULL for anonymous
-  ip_hash VARCHAR(64),  -- Hashed IP for abuse tracking
   CONSTRAINT chk_message_length CHECK (char_length(content) >= 1 AND char_length(content) <= 5000)
 );
 
@@ -81,7 +81,7 @@ CREATE TABLE audit_log (
   resource_type VARCHAR(50),
   resource_id VARCHAR(128),
   event_data JSONB,
-  ip_address VARCHAR(45),  -- IPv4 or IPv6
+  -- ip_address column removed — storing raw IPs undermines sender anonymity
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

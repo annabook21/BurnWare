@@ -12,6 +12,7 @@ import { CreateLinkDialog } from './CreateLinkDialog';
 import { QRCodeDialog } from './QRCodeDialog';
 import axios from 'axios';
 import { awsConfig } from '../../config/aws-config';
+import { getAccessToken } from '../../config/cognito-config';
 import type { Link } from '../../types';
 
 interface LinksPanelProps {
@@ -38,7 +39,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
   const fetchLinks = async () => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       const response = await axios.get(`${awsConfig.api.baseUrl}/api/v1/dashboard/links`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -68,7 +69,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
   const handleLinkCreated = async (data: { display_name: string; description?: string }) => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       const response = await axios.post(
         `${awsConfig.api.baseUrl}/api/v1/dashboard/links`,
         data,
@@ -94,7 +95,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
     if (!selectedLink) return;
 
     try {
-      const token = localStorage.getItem('authToken');
+      const token = await getAccessToken();
       await axios.patch(
         `${awsConfig.api.baseUrl}/api/v1/dashboard/links/${selectedLink.link_id}`,
         { description },

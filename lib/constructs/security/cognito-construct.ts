@@ -41,6 +41,10 @@ export class CognitoConstruct extends Construct {
           required: true,
           mutable: false,
         },
+        preferredUsername: {
+          required: false,
+          mutable: true,
+        },
       },
       passwordPolicy: {
         minLength: 12,

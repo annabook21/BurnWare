@@ -30,8 +30,6 @@ export const sendMessage = asyncHandler(
       const result = await messageService.sendAnonymousMessage({
         recipient_link_id,
         message,
-        sender_ip: req.ip || 'unknown',
-        user_agent: req.get('user-agent') || 'unknown',
       });
 
       subsegment?.close();
