@@ -41,10 +41,9 @@ export class CognitoConstruct extends Construct {
           required: true,
           mutable: false,
         },
-        preferredUsername: {
-          required: false,
-          mutable: true,
-        },
+        // preferred_username is a standard Cognito attribute available by default.
+        // It cannot be added to the schema after pool creation, but clients can
+        // set it via signUp userAttributes without declaring it here.
       },
       passwordPolicy: {
         minLength: 12,

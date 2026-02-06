@@ -24,7 +24,7 @@ export interface EnvironmentConfig {
 export const devConfig: EnvironmentConfig = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+    region: 'us-east-1',
   },
   domainName: 'dev.burnware.example.com',
   enableDeletionProtection: false,

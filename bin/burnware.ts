@@ -85,13 +85,19 @@ appStack.addDependency(networkStack);
 appStack.addDependency(authStack);
 appStack.addDependency(dataStack);
 
+// Look up the WAF WebACL ARN via context to avoid cross-region CDK token references.
+// WAF must be in us-east-1 for CloudFront, but Frontend may be in a different region.
+// Set via: cdk deploy -c wafAclArn=arn:aws:wafv2:...
+const wafAclArn = app.node.tryGetContext('wafAclArn') || wafStack.webAclArn;
+
 // Frontend Stack (depends on Auth + App for Cognito and API URL)
 const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentName}`, {
   env: config.env,
+  crossRegionReferences: true,
   environment: environmentName,
   domainName: config.domainName,
   certificateArn: config.certificateArn,
-  webAclArn: wafStack.webAclArn,
+  webAclArn: wafAclArn,
   cognitoUserPoolId: authStack.userPool,
   cognitoClientId: authStack.userPoolClient,
   apiBaseUrl: `http://${appStack.albDnsName}`,
