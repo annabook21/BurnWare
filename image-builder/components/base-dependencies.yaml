@@ -1,0 +1,48 @@
+# EC2 Image Builder Component - Base Dependencies
+# Installs Node.js, PM2, PostgreSQL client, CloudWatch agent, SSM agent
+# Reference: https://docs.aws.amazon.com/imagebuilder/
+
+name: BurnWare-Base-Dependencies
+description: Install base dependencies for BurnWare application
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: InstallNode
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Installing Node.js 24.x LTS (latest as of Feb 2026)"
+            - dnf install -y nodejs npm
+            - node --version
+            - npm --version
+            - echo "Installing PM2 latest"
+            - npm install -g pm2@latest
+            - pm2 --version
+
+      - name: InstallSystemPackages
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Installing system packages"
+            - dnf install -y amazon-cloudwatch-agent
+            - dnf install -y postgresql16-client
+            - dnf install -y jq curl tar
+            - echo "PostgreSQL 16 client installed for compatibility"
+
+      - name: InstallSSMAgent
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Enabling SSM Agent"
+            - dnf install -y amazon-ssm-agent
+            - systemctl enable amazon-ssm-agent
+            - systemctl start amazon-ssm-agent
+
+      - name: CreateAppDirectory
+        action: ExecuteBash
+        inputs:
+          commands:
+            - mkdir -p /opt/burnware
+            - chown -R ec2-user:ec2-user /opt/burnware

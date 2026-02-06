@@ -1,0 +1,52 @@
+# EC2 Image Builder Component - Security Hardening
+# Applies security best practices to the base image
+
+name: BurnWare-Security-Hardening
+description: Apply security hardening to EC2 instance
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: DisableUnusedServices
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Disabling unused services"
+            - systemctl disable postfix || true
+
+      - name: ConfigureSSHD
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Hardening SSH configuration"
+            - echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+            - echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+            - echo "X11Forwarding no" >> /etc/ssh/sshd_config
+            - echo "MaxAuthTries 3" >> /etc/ssh/sshd_config
+
+      - name: SetFilePermissions
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Setting secure file permissions"
+            - chmod 700 /root
+            - chmod 600 /etc/ssh/sshd_config
+
+      - name: ConfigureFirewall
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Configuring firewall rules"
+            - dnf install -y iptables-services
+            - systemctl enable iptables
+
+  - name: validate
+    steps:
+      - name: ValidateSecurity
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Validating security configuration"
+            - grep "PermitRootLogin no" /etc/ssh/sshd_config
+            - echo "Security hardening complete"

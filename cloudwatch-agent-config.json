@@ -1,0 +1,79 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/opt/burnware/logs/application.log",
+            "log_group_name": "/aws/burnware/{environment}/application",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%dT%H:%M:%S.%fZ",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/opt/burnware/logs/error.log",
+            "log_group_name": "/aws/burnware/{environment}/errors",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%dT%H:%M:%S.%fZ"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "BurnWare/Application",
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [
+          {
+            "name": "cpu_usage_idle",
+            "rename": "CPU_IDLE",
+            "unit": "Percent"
+          },
+          {
+            "name": "cpu_usage_iowait",
+            "rename": "CPU_IOWAIT",
+            "unit": "Percent"
+          }
+        ],
+        "metrics_collection_interval": 60,
+        "totalcpu": false
+      },
+      "disk": {
+        "measurement": [
+          {
+            "name": "used_percent",
+            "rename": "DISK_USED",
+            "unit": "Percent"
+          }
+        ],
+        "metrics_collection_interval": 60,
+        "resources": ["*"]
+      },
+      "mem": {
+        "measurement": [
+          {
+            "name": "mem_used_percent",
+            "rename": "MEM_USED",
+            "unit": "Percent"
+          }
+        ],
+        "metrics_collection_interval": 60
+      },
+      "netstat": {
+        "measurement": [
+          {
+            "name": "tcp_established",
+            "rename": "TCP_CONNECTIONS",
+            "unit": "Count"
+          }
+        ],
+        "metrics_collection_interval": 60
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# EC2 Image Builder Component - X-Ray Daemon
+# Installs and configures AWS X-Ray daemon
+# Reference: https://docs.aws.amazon.com/xray/latest/devguide/xray-daemon-ec2.html
+
+name: BurnWare-XRay-Daemon
+description: Install AWS X-Ray daemon for distributed tracing
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: InstallXRay
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Installing X-Ray daemon"
+            - curl https://s3.us-east-2.amazonaws.com/aws-xray-assets.us-east-2/xray-daemon/aws-xray-daemon-3.x.rpm -o /tmp/xray.rpm
+            - yum install -y /tmp/xray.rpm
+            - rm /tmp/xray.rpm
+
+      - name: ConfigureXRay
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Configuring X-Ray daemon"
+            - systemctl enable xray
+            - echo "X-Ray daemon configured to start on boot"
+
+  - name: validate
+    steps:
+      - name: ValidateXRay
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo "Validating X-Ray installation"
+            - which xray
+            - systemctl status xray --no-pager || true
