@@ -17,6 +17,7 @@ interface QRCodeDialogProps {
   linkName: string;
   qrCodeUrl?: string;
   onClose: () => void;
+  onDelete?: (linkId: string) => void;
 }
 
 const DialogContainer = styled.div`
@@ -76,12 +77,24 @@ const Button = styled.button`
   }
 `;
 
+const DeleteButton = styled(Button)`
+  background: #FF6B6B;
+  color: white;
+  font-weight: bold;
+
+  &:hover {
+    background: #FF4444;
+  }
+`;
+
 export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
   linkId,
   linkName,
   qrCodeUrl: _qrCodeUrl,
   onClose,
+  onDelete,
 }) => {
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const baseUrl =
     awsConfig.api.baseUrl.replace('/api', '') || window.location.origin;
   const fullUrl = `${baseUrl}/l/${linkId}`;
@@ -138,7 +151,16 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
         <ButtonBar>
           <Button onClick={handleCopyLink}>📋 Copy Link</Button>
           <Button onClick={handleDownloadQR}>💾 Download QR</Button>
-          <Button onClick={onClose}>Close</Button>
+          {onDelete && !confirmingDelete && (
+            <DeleteButton onClick={() => setConfirmingDelete(true)}>🗑️ Delete</DeleteButton>
+          )}
+          {onDelete && confirmingDelete && (
+            <>
+              <DeleteButton onClick={() => onDelete(linkId)}>Confirm</DeleteButton>
+              <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+            </>
+          )}
+          {!confirmingDelete && <Button onClick={onClose}>Close</Button>}
         </ButtonBar>
       </DialogContainer>
     </WindowFrame>

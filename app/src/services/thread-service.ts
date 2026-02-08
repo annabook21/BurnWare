@@ -27,7 +27,7 @@ export class ThreadService {
   /**
    * Create new thread (when anonymous user sends first message)
    */
-  async createThread(linkId: string): Promise<Thread> {
+  async createThread(linkId: string, senderPublicKey?: string): Promise<Thread> {
     // Verify link exists and is active
     const link = await this.linkModel.findById(linkId);
     if (!link) {
@@ -37,10 +37,11 @@ export class ThreadService {
     // Generate random anonymous sender ID (not derived from IP/UA for privacy)
     const anonymousId = CryptoUtils.generateRandomString(8);
 
-    // Create thread
+    // Create thread (with sender's E2EE public key if provided)
     const threadData: CreateThreadData = {
       link_id: linkId,
       sender_anonymous_id: anonymousId,
+      sender_public_key: senderPublicKey,
     };
 
     const thread = await this.threadModel.create(threadData);

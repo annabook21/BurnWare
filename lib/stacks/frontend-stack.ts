@@ -14,6 +14,8 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { DockerImage } from 'aws-cdk-lib';
@@ -34,6 +36,8 @@ export interface FrontendStackProps extends StackProps {
   apiBaseUrl: string;
   /** ALB for CloudFront VPC Origin /api/* proxy */
   alb?: elbv2.IApplicationLoadBalancer;
+  /** Route 53 hosted zone for DNS validation and alias records */
+  hostedZone?: route53.IHostedZone;
 }
 
 export class FrontendStack extends Stack {
@@ -44,7 +48,7 @@ export class FrontendStack extends Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, webAclArn, alb } = props;
+    const { environment, domainName, certificateArn, webAclArn, alb, hostedZone } = props;
 
     // Create S3 bucket for SPA assets
     // https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/deploy-a-react-based-single-page-application-to-amazon-s3-and-cloudfront.html
@@ -86,10 +90,16 @@ export class FrontendStack extends Stack {
       enableAcceptEncodingBrotli: true,
     });
 
-    // Get certificate if provided (must be in us-east-1 for CloudFront)
-    const certificate = certificateArn
-      ? certificatemanager.Certificate.fromCertificateArn(this, 'Certificate', certificateArn)
-      : undefined;
+    // Get or create certificate (must be in us-east-1 for CloudFront)
+    // https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_certificatemanager-readme.html
+    const certificate = hostedZone
+      ? new certificatemanager.Certificate(this, 'Certificate', {
+          domainName,
+          validation: certificatemanager.CertificateValidation.fromDns(hostedZone),
+        })
+      : certificateArn
+        ? certificatemanager.Certificate.fromCertificateArn(this, 'Certificate', certificateArn)
+        : undefined;
 
     // Create CloudFront distribution
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
@@ -151,6 +161,22 @@ export class FrontendStack extends Stack {
     });
 
     // Bucket policy for CloudFront is added automatically by S3BucketOrigin.withOriginAccessControl
+
+    // Create DNS alias records pointing domain to CloudFront
+    // A record (IPv4) + AAAA record (IPv6) — alias at zone apex is required since
+    // CNAME cannot exist at zone apex per DNS RFCs.
+    if (hostedZone && certificate) {
+      new route53.ARecord(this, 'AliasA', {
+        zone: hostedZone,
+        recordName: domainName,
+        target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution)),
+      });
+      new route53.AaaaRecord(this, 'AliasAAAA', {
+        zone: hostedZone,
+        recordName: domainName,
+        target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(this.distribution)),
+      });
+    }
 
     this.distributionDomain = this.distribution.distributionDomainName;
 

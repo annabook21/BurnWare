@@ -100,6 +100,7 @@ export class UserDataBuilder {
       'DB_NAME=burnware',
       'NODE_ENV=production',
       'PORT=3000',
+      'ALLOWED_ORIGINS=*',
       `COGNITO_USER_POOL_ID=${config.cognitoUserPoolId}`,
       `COGNITO_CLIENT_ID=${config.cognitoClientId}`,
       'ENVEOF',

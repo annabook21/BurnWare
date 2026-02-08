@@ -12,6 +12,7 @@ import { DataStack } from '../lib/stacks/data-stack';
 import { AppStack } from '../lib/stacks/app-stack';
 import { WafStack } from '../lib/stacks/waf-stack';
 import { FrontendStack } from '../lib/stacks/frontend-stack';
+import { DnsStack } from '../lib/stacks/dns-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
 import { devConfig } from '../lib/config/environments/dev';
 import { prodConfig } from '../lib/config/environments/prod';
@@ -50,6 +51,16 @@ const dataStack = new DataStack(app, `BurnWare-Data-${environmentName}`, {
   description: 'RDS PostgreSQL database',
 });
 dataStack.addDependency(networkStack);
+
+// DNS Stack (shared — creates Route 53 hosted zone for burnware.live)
+// Deploy this first, then update nameservers at your domain registrar.
+const dnsStack = config.hostedZoneDomain
+  ? new DnsStack(app, 'BurnWare-DNS', {
+      env: { ...config.env, region: 'us-east-1' },
+      domainName: config.hostedZoneDomain,
+      description: 'Route 53 hosted zone for burnware.live',
+    })
+  : undefined;
 
 // WAF Stack (must be in us-east-1 for CloudFront)
 const wafStack = new WafStack(app, `BurnWare-WAF-${environmentName}`, {
@@ -98,11 +109,13 @@ const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentNam
   cognitoClientId: authStack.userPoolClient,
   apiBaseUrl: '', // Same-origin: CloudFront proxies /api/* to ALB, avoids mixed content
   alb: appStack.alb,
+  hostedZone: dnsStack?.hostedZone,
   description: 'CloudFront distribution and S3 bucket for SPA',
 });
 frontendStack.addDependency(wafStack);
 frontendStack.addDependency(authStack);
 frontendStack.addDependency(appStack);
+if (dnsStack) frontendStack.addDependency(dnsStack);
 
 // Observability Stack
 const observabilityStack = new ObservabilityStack(

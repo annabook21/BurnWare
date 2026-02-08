@@ -10,4 +10,5 @@ export interface Link {
   expires_at?: string;
   burned: boolean;
   qr_code_url?: string;
+  public_key?: string;
 }

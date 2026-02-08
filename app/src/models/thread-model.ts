@@ -17,11 +17,13 @@ export interface Thread {
   burned: boolean;
   message_count: number;
   sender_anonymous_id: string;
+  sender_public_key?: string;
 }
 
 export interface CreateThreadData {
   link_id: string;
   sender_anonymous_id: string;
+  sender_public_key?: string;
 }
 
 export class ThreadModel {
@@ -34,13 +36,13 @@ export class ThreadModel {
    */
   async create(data: CreateThreadData): Promise<Thread> {
     const query = `
-      INSERT INTO threads (link_id, sender_anonymous_id)
-      VALUES ($1, $2)
+      INSERT INTO threads (link_id, sender_anonymous_id, sender_public_key)
+      VALUES ($1, $2, $3)
       RETURNING *
     `;
 
     try {
-      const result = await this.db.query(query, [data.link_id, data.sender_anonymous_id]);
+      const result = await this.db.query(query, [data.link_id, data.sender_anonymous_id, data.sender_public_key || null]);
       return result.rows[0] as Thread;
     } catch (error) {
       logger.error('Failed to create thread', { error });

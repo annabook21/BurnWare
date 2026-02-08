@@ -11,6 +11,8 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
+import { decrypt, encrypt } from '../../utils/e2ee';
+import { getLinkKey, getReplyPlaintexts, saveReplyPlaintext } from '../../utils/key-store';
 import type { Message } from '../../types';
 
 interface ThreadsPanelProps {
@@ -27,6 +29,7 @@ interface ThreadData {
   thread_id: string;
   link_id: string;
   sender_anonymous_id: string;
+  sender_public_key?: string;
   burned: boolean;
   messages: Message[];
 }
@@ -72,6 +75,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
             thread_id: data.thread_id,
             link_id: data.link_id,
             sender_anonymous_id: data.sender_anonymous_id || data.thread_id?.slice(0, 8) || 'anon',
+            sender_public_key: data.sender_public_key,
             burned: data.burned,
             messages: data.messages || [],
           } as ThreadData;
@@ -83,6 +87,24 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
         .map((r) => r.value);
 
       const activeThreads = threadDetails.filter((t) => !t.burned);
+
+      // E2EE: decrypt messages client-side
+      const linkKey = await getLinkKey(linkId);
+      for (const thread of activeThreads) {
+        const replyCache = await getReplyPlaintexts(thread.thread_id);
+        for (const msg of thread.messages) {
+          if (msg.sender_type === 'anonymous' && linkKey) {
+            try {
+              msg.content = await decrypt(msg.content, linkKey);
+            } catch {
+              msg.content = '[Unable to decrypt]';
+            }
+          } else if (msg.sender_type === 'owner') {
+            msg.content = replyCache[msg.message_id] || '[Your reply]';
+          }
+        }
+      }
+
       setThreads(activeThreads);
       if (initialLoadRef.current && activeThreads.length > 0) {
         playYouvGotMail();
@@ -125,12 +147,27 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
+      const thread = threads.find((t) => t.thread_id === threadId);
+      if (!thread?.sender_public_key) {
+        toast.error('Cannot encrypt reply — no sender key.');
+        return;
+      }
+
+      // E2EE: encrypt reply with sender's public key
+      const { ciphertext } = await encrypt(message, thread.sender_public_key);
+
       const token = await getAccessToken();
-      await apiClient.post(
+      const res = await apiClient.post(
         endpoints.dashboard.threadReply(threadId),
-        { message },
+        { ciphertext },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // Cache plaintext so owner can read their own reply
+      const messageId = res.data?.data?.message_id;
+      if (messageId) {
+        await saveReplyPlaintext(threadId, messageId, message);
+      }
 
       await fetchThreads();
     } catch (error) {

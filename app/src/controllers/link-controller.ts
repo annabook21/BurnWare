@@ -27,6 +27,7 @@ export const createLink = asyncHandler(
         display_name: string;
         description?: string;
         expires_in_days?: number;
+        public_key: string;
       };
 
       const link = await linkService.createLink(userId, input);

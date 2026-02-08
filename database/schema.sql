@@ -31,6 +31,7 @@ CREATE TABLE links (
   burned BOOLEAN NOT NULL DEFAULT FALSE,
   message_count INTEGER NOT NULL DEFAULT 0,
   qr_code_url VARCHAR(500),  -- S3 signed URL or path
+  public_key TEXT,  -- ECDH P-256 public key (base64 raw), required for E2EE
   CONSTRAINT chk_display_name_length CHECK (char_length(display_name) >= 1),
   CONSTRAINT chk_link_id_format CHECK (link_id ~ '^[A-Za-z0-9_-]+$')
 );
@@ -49,6 +50,7 @@ CREATE TABLE threads (
   burned BOOLEAN NOT NULL DEFAULT FALSE,
   message_count INTEGER NOT NULL DEFAULT 0,
   sender_anonymous_id VARCHAR(64) NOT NULL,  -- Random per-thread identifier (not derived from sender data)
+  sender_public_key TEXT,  -- Sender's ECDH P-256 ephemeral public key (base64 raw), for E2EE replies
   CONSTRAINT chk_sender_id_length CHECK (char_length(sender_anonymous_id) >= 8)
 );
 
@@ -66,7 +68,7 @@ CREATE TABLE messages (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   sender_type VARCHAR(20) NOT NULL CHECK (sender_type IN ('anonymous', 'owner')),
   sender_id VARCHAR(128),  -- Cognito sub for owner, NULL for anonymous
-  CONSTRAINT chk_message_length CHECK (char_length(content) >= 1 AND char_length(content) <= 5000)
+  CONSTRAINT chk_message_length CHECK (char_length(content) >= 1 AND char_length(content) <= 10000)
 );
 
 CREATE INDEX idx_messages_thread_id ON messages(thread_id);

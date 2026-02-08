@@ -616,7 +616,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
         <LogoSection>
           <Logo src="/burnware-logo.png" alt="BurnWare" />
           <Title>BurnWare</Title>
-          <Subtitle>Anonymous Inbox System</Subtitle>
+          <Subtitle>Private Inbox — send without an account</Subtitle>
         </LogoSection>
 
         {renderers[mode]()}

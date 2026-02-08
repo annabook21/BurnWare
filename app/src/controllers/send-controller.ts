@@ -26,15 +26,17 @@ export const sendMessage = asyncHandler(
     const subsegment = createSubsegment('send_message');
 
     try {
-      const { recipient_link_id, message } = req.validated as {
+      const { recipient_link_id, ciphertext, sender_public_key } = req.validated as {
         recipient_link_id: string;
-        message: string;
+        ciphertext: string;
+        sender_public_key: string;
       };
 
-      // Send message
+      // Send E2EE message (server stores ciphertext, never sees plaintext)
       const result = await messageService.sendAnonymousMessage({
         recipient_link_id,
-        message,
+        ciphertext,
+        sender_public_key,
       });
 
       subsegment?.close();
@@ -78,6 +80,7 @@ export const getThreadPublic = asyncHandler(
     ResponseUtils.success(res, {
       thread_id: thread.thread_id,
       created_at: thread.created_at,
+      sender_public_key: thread.sender_public_key,
       messages: messages.map((m) => ({
         message_id: m.message_id,
         content: m.content,

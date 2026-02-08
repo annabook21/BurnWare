@@ -14,6 +14,8 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
+import { encrypt } from '../../utils/e2ee';
+import { saveSenderKey } from '../../utils/key-store';
 
 interface SendMessageWindowProps {
   linkId: string;
@@ -159,7 +161,7 @@ const SuccessSection = styled.div`
 
 export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) => {
   const [message, setMessage] = useState('');
-  const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string } | null>(null);
+  const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string; public_key?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sentThreadId, setSentThreadId] = useState<string | null>(null);
@@ -188,16 +190,26 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   }, [linkId]);
 
   const handleSend = async () => {
-    if (!message.trim() || sending) return;
+    if (!message.trim() || sending || !linkInfo?.public_key) return;
 
     setSending(true);
     try {
+      // E2EE: encrypt message with link's public key
+      const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
+        await encrypt(message.trim(), linkInfo.public_key);
+
       const res = await apiClient.post(endpoints.public.send(), {
         recipient_link_id: linkId,
-        message: message.trim(),
+        ciphertext,
+        sender_public_key: ephemeralPublicKeyBase64,
       });
       const data = res.data?.data as { thread_id?: string } | undefined;
       const threadId = data?.thread_id;
+
+      // Store ephemeral private key so sender can decrypt owner replies later
+      if (threadId) {
+        saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessage: message.trim() });
+      }
 
       playMatchStrike();
       toast.success('Message sent!');
@@ -270,12 +282,12 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             />
             <CharCount>{MAX_LENGTH - message.length} characters remaining</CharCount>
 
-            <PrivacyNote>
-              🔒 Your message is completely anonymous. The recipient can burn the thread at any time.
-            </PrivacyNote>
+          <PrivacyNote>
+            🔒 End-to-end encrypted. The server never sees your message — only the recipient can decrypt it. We don&apos;t store who you are (no account, no IP in our app).
+          </PrivacyNote>
 
             <ButtonBar>
-              <SendButton onClick={handleSend} disabled={!message.trim() || sending}>
+              <SendButton onClick={handleSend} disabled={!message.trim() || sending || !linkInfo?.public_key}>
                 {sending ? 'Sending...' : '📤 Send Message'}
               </SendButton>
             </ButtonBar>

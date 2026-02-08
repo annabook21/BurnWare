@@ -16,6 +16,8 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
+import { generateKeyPair } from '../../utils/e2ee';
+import { saveLinkKey } from '../../utils/key-store';
 import type { Link } from '../../types';
 
 const POLL_INTERVAL_MS = 15000; // 15 seconds (lighter than threads — just link metadata)
@@ -98,26 +100,50 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
   const handleLinkCreated = async (data: { display_name: string; description?: string }) => {
     try {
+      // Generate E2EE key pair — public key goes to server, private stays local
+      const { publicKeyBase64, privateKeyJwk } = await generateKeyPair();
+
       const token = await getAccessToken();
       const response = await apiClient.post(
         endpoints.dashboard.links(),
-        data,
+        { ...data, public_key: publicKeyBase64 },
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
+      // Store private key in IndexedDB keyed by link_id
+      const newLink = response.data.data;
+      await saveLinkKey(newLink.link_id, privateKeyJwk);
 
       await fetchLinks();
       setShowCreateDialog(false);
       playFilesDone();
 
       // Show QR code for new link
-      const newLink = response.data.data;
       setSelectedLink(newLink);
       setShowQRDialog(true);
     } catch (error) {
       console.error('Failed to create link:', error);
       toast.error('Failed to create link. Please try again.');
+    }
+  };
+
+  const handleDeleteLink = async (linkId: string) => {
+    try {
+      const token = await getAccessToken();
+      await apiClient.delete(endpoints.dashboard.link(linkId), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      playFilesDone();
+      toast.success('Link deleted.');
+      setShowQRDialog(false);
+      setSelectedLink(null);
+      await fetchLinks();
+    } catch (error) {
+      console.error('Failed to delete link:', error);
+      toast.error('Failed to delete link.');
     }
   };
 
@@ -191,6 +217,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
             setShowQRDialog(false);
             setSelectedLink(null);
           }}
+          onDelete={handleDeleteLink}
         />
       )}
     </Container>

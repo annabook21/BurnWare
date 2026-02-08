@@ -18,6 +18,7 @@ export interface CreateLinkInput {
   display_name: string;
   description?: string;
   expires_in_days?: number;
+  public_key?: string;
 }
 
 export class LinkService {
@@ -54,6 +55,7 @@ export class LinkService {
       display_name: input.display_name,
       description: input.description,
       expires_at: expiresAt,
+      public_key: input.public_key,
     };
 
     const link = await this.linkModel.create(linkData);
@@ -175,6 +177,7 @@ export class LinkService {
     display_name: string;
     description?: string;
     qr_code_url?: string;
+    public_key?: string;
   }> {
     const link = await this.getLinkById(linkId);
 
@@ -182,6 +185,7 @@ export class LinkService {
       display_name: link.display_name,
       description: link.description,
       qr_code_url: link.qr_code_url,
+      public_key: link.public_key,
     };
   }
 

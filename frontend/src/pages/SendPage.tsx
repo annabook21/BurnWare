@@ -66,7 +66,7 @@ export const SendPage: React.FC = () => {
       </CenteredContainer>
 
       <Footer>
-        🔥 BurnWare - Anonymous Inbox System | Your message is completely anonymous
+        🔥 BurnWare - Anonymous Inbox | We don&apos;t store who you are (not Tor-level anonymity)
       </Footer>
     </Desktop>
   );

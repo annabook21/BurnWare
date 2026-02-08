@@ -20,6 +20,7 @@ export interface Link {
   burned: boolean;
   message_count: number;
   qr_code_url?: string;
+  public_key?: string;
 }
 
 export interface CreateLinkData {
@@ -29,6 +30,7 @@ export interface CreateLinkData {
   description?: string;
   expires_at?: Date;
   qr_code_url?: string;
+  public_key?: string;
 }
 
 export class LinkModel {
@@ -41,8 +43,8 @@ export class LinkModel {
    */
   async create(data: CreateLinkData): Promise<Link> {
     const query = `
-      INSERT INTO links (link_id, owner_user_id, display_name, description, expires_at, qr_code_url)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO links (link_id, owner_user_id, display_name, description, expires_at, qr_code_url, public_key)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -54,6 +56,7 @@ export class LinkModel {
         data.description || null,
         data.expires_at || null,
         data.qr_code_url || null,
+        data.public_key || null,
       ]);
 
       return result.rows[0] as Link;

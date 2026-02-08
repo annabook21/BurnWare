@@ -11,7 +11,8 @@ import Joi from 'joi';
  */
 export const sendMessageSchema = Joi.object({
   recipient_link_id: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).min(8).max(16).required(),
-  message: Joi.string().min(1).max(5000).required().trim(),
+  ciphertext: Joi.string().min(1).max(10000).required(),
+  sender_public_key: Joi.string().min(1).max(500).required(),
   captcha_token: Joi.string().optional(), // WAF CAPTCHA token
 });
 
@@ -19,7 +20,7 @@ export const sendMessageSchema = Joi.object({
  * Schema for owner reply to thread
  */
 export const replyMessageSchema = Joi.object({
-  message: Joi.string().min(1).max(5000).required().trim(),
+  ciphertext: Joi.string().min(1).max(10000).required(),
 });
 
 /**

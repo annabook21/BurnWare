@@ -15,7 +15,8 @@ import { LoggerUtils } from '../utils/logger-utils';
 
 export interface SendMessageInput {
   recipient_link_id: string;
-  message: string;
+  ciphertext: string;
+  sender_public_key: string;
 }
 
 export class MessageService {
@@ -38,7 +39,7 @@ export class MessageService {
     thread_id: string;
     created_at: Date;
   }> {
-    const { recipient_link_id, message } = input;
+    const { recipient_link_id, ciphertext, sender_public_key } = input;
 
     // Validate link exists and is active
     const link = await this.linkModel.findById(recipient_link_id);
@@ -56,18 +57,18 @@ export class MessageService {
       throw new ValidationError('Link is no longer active');
     }
 
-    // Create new thread for each anonymous message
-    const thread = await this.threadService.createThread(recipient_link_id);
+    // Create new thread for each anonymous message (with sender's E2EE public key)
+    const thread = await this.threadService.createThread(recipient_link_id, sender_public_key);
 
     // Check if thread is burned
     if (thread.burned) {
       throw new ValidationError('Thread has been burned by the recipient');
     }
 
-    // Create message
+    // Create message (content is ciphertext — server never sees plaintext)
     const messageData: CreateMessageData = {
       thread_id: thread.thread_id,
-      content: message,
+      content: ciphertext,
       sender_type: 'anonymous',
     };
 

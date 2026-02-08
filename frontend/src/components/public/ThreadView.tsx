@@ -10,6 +10,8 @@ import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import axios from 'axios';
+import { decrypt } from '../../utils/e2ee';
+import { getSenderKey } from '../../utils/key-store';
 import type { Message } from '../../types/message';
 
 interface ThreadViewProps {
@@ -86,7 +88,25 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
     try {
       const res = await apiClient.get(endpoints.public.thread(threadId), { signal });
       const data = res.data?.data;
-      const msgList = Array.isArray(data?.messages) ? data.messages : [];
+      const msgList: Message[] = Array.isArray(data?.messages) ? data.messages : [];
+
+      // E2EE: decrypt messages client-side using sender's ephemeral key
+      const senderData = getSenderKey(threadId);
+      for (const msg of msgList) {
+        if (msg.sender_type === 'anonymous') {
+          // Sender's own message — use cached plaintext (can't decrypt; encrypted with link's pub key)
+          msg.content = senderData?.sentMessage || '[Your message]';
+        } else if (msg.sender_type === 'owner' && senderData?.privateKeyJwk) {
+          try {
+            msg.content = await decrypt(msg.content, senderData.privateKeyJwk);
+          } catch {
+            msg.content = '[Unable to decrypt]';
+          }
+        } else if (msg.sender_type === 'owner') {
+          msg.content = '[Key not available on this device]';
+        }
+      }
+
       setMessages(msgList);
       setNotFound(false);
     } catch (err: unknown) {

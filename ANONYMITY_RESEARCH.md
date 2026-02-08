@@ -5,6 +5,17 @@
 
 ---
 
+## 0. What BurnWare Is (and Isn’t)
+
+**BurnWare is not Tor.** We provide **application-level** anonymity only:
+
+- **We do:** Don’t store or log your identity (no account required, no IP or fingerprint in our app or DB). Random per-thread IDs; no linkage across threads.
+- **We don’t:** Hide your network identity. Your IP and traffic are visible to the hosting provider (e.g. AWS), CDN (CloudFront), WAF, and your ISP. There is no onion routing, no mix network, no traffic-analysis resistance.
+
+For **network-level** anonymity (e.g. hiding from your ISP or the host), use Tor or a VPN and access BurnWare through it; we don’t provide that ourselves.
+
+---
+
 ## 1. Industry Best Practices (2025–2026)
 
 ### 1.1 Metadata Protection (Signal, Echomix, Generic Anonymity Wrapper)
@@ -150,3 +161,85 @@ Trade-off: per-link rate limiting can be gamed (create many links). A hybrid app
 ## 6. Conclusion
 
 BurnWare’s application design is already aligned with strong anonymity practices: no stored IP, no linkage across threads, random IDs. The main improvement is to stop using IP in rate limiting for anonymous sends and to tighten edge/observability handling. The recommendations above produce a robust anonymity profile for a burn-after-reading anonymous inbox without requiring Tor or mix networks.
+
+---
+
+## 7. Future: How to Achieve Tor-Level (or Stronger) Anonymity
+
+If you want to move toward network-level anonymity so the server (and host) cannot see the client’s IP or traffic pattern, these options are ordered by effort and impact.
+
+### 7.1 Use Tor (or a VPN) to access BurnWare — no code change
+
+- **Senders:** Use the Tor Browser (or Tor + normal browser) and open your BurnWare frontend URL. Traffic is onion-routed; your IP is hidden from the site and your ISP.
+- **You:** No backend/frontend changes. Optional: document the .onion URL if you add a hidden service (see below).
+- **Limitation:** Only helps users who choose to use Tor; the app itself doesn’t enforce or provide it.
+
+### 7.2 Run BurnWare as a Tor Onion Service (hidden service)
+
+- **What:** Host the frontend (and optionally the API) as a Tor hidden service so users can reach you at a `.onion` address. Traffic to your service is over Tor; you never see the client’s real IP.
+- **How:** Run a Tor daemon on a host that can reach your frontend/API (or a reverse proxy in front of them). Configure a hidden service in `torrc`; you get a `.onion` URL. Point users (and docs) to that URL.
+- **References:** [Tor Hidden Services](https://community.torproject.org/onion-services/), [Tor Manual](https://2019.www.torproject.org/docs/tor-onion-service-manual.html.en).
+- **Effort:** Medium (new deployment path or proxy; no app logic change). You still run your current stack; Tor sits in front for that entry point.
+
+### 7.3 Oblivious HTTP (OHTTP) — server never sees client IP
+
+- **What:** Clients send requests through an OHTTP relay. The relay sees the client IP; your origin server does not. Good for “anonymous submit” forms and APIs.
+- **How:** Integrate an OHTTP relay (e.g. [Cloudflare’s OHTTP relay](https://blog.cloudflare.com/oblivious-http)) or run your own (IETF RFC 9458). The frontend or a small client-side layer encrypts requests for the relay; the relay forwards to your API without exposing client IP.
+- **References:** [RFC 9458 Oblivious HTTP](https://www.rfc-editor.org/rfc/rfc9458.html), [Cloudflare OHTTP](https://blog.cloudflare.com/oblivious-http).
+- **Effort:** Higher (new protocol integration, key config, possibly a different entry URL for “anonymous” traffic). Best for anonymous send + optional thread view, not full site.
+
+### 7.4 End-to-end encryption (E2EE)
+
+- **What:** Senders encrypt message content in the browser; only the recipient can decrypt. You store ciphertext only; no plaintext on your server.
+- **How:** Generate or derive a key per link (or per thread); sender gets the recipient’s public key from the link metadata, encrypts with it, sends ciphertext. Recipient decrypts in the dashboard with their private key (or key derived from something only they have).
+- **References:** [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API), [Signal’s Double Ratchet](https://signal.org/docs/) for advanced multi-message.
+- **Effort:** Medium–high (key exchange UX, key storage or derivation, and making thread view decrypt in-browser). Does not hide who talks to whom or when; it hides content from the server.
+
+### 7.5 Combine for strongest anonymity
+
+- **Tor + OHTTP:** Sender uses Tor and submits via OHTTP so neither the relay (in practice) nor your origin sees the real IP.
+- **Tor + E2EE:** Sender uses Tor; content is E2EE so the server never sees plaintext. Good for high-threat users who need both network and content protection.
+
+**Practical order:** (1) Document “use Tor Browser for network anonymity” and optionally (2) add an onion service so users have a single Tor URL. Then consider OHTTP for the send API and E2EE for content if you need stronger guarantees.
+
+---
+
+## 8. What’s Special About Signal (and How BurnWare Compares)
+
+Signal is a **private messenger** focused on minimizing what the server (and anyone else) can see. Here’s what makes it stand out and how BurnWare differs.
+
+### What makes Signal special
+
+1. **End-to-end encryption (E2EE) by default**  
+   Message content is encrypted on the sender’s device and decrypted only on the recipient’s. The server only sees ciphertext; it never has the keys. Uses the [Signal Protocol](https://signal.org/docs/) (Double Ratchet, 3-DH, Curve25519, AES-256).
+
+2. **Metadata minimization**  
+   Signal is designed to retain as little as possible: no logs of who messaged whom, no contact lists or social graph, no conversation lists, no group metadata (titles, avatars, membership) stored in a way the server can read. [Sealed Sender](https://signal.org/blog/sealed-sender/) hides sender identity on the envelope so the server doesn’t see “A sent to B.”
+
+3. **No ads, no trackers, nonprofit**  
+   Independent nonprofit; revenue from donations, not ads or selling data. No third-party trackers.
+
+4. **Open protocol and clients**  
+   Signal Protocol is open; other apps (WhatsApp, Messenger optional mode, etc.) use it. Clients are open source so the design can be audited.
+
+5. **Identity model**  
+   You sign up with a phone number; identity is “who has this number,” not “anonymous.” So Signal is **private** (content and metadata hidden from the server) but not **anonymous** (recipient and server know your number).
+
+### Signal vs BurnWare
+
+| Aspect | Signal | BurnWare |
+|--------|--------|----------|
+| **Purpose** | Private 1:1 and group chat; you know who you’re talking to. | One-way or two-way messages to a **link**; sender can be unknown to the link owner. |
+| **Identity** | Phone number (or optional username). Not anonymous. | Sender: no account, random per-thread ID. Recipient: Cognito account. |
+| **Message content** | E2EE; server never sees plaintext. | Server stores and can read content; no E2EE. |
+| **Metadata** | Minimized; Sealed Sender hides who-sent-to-whom from server. | We don’t store IP/UA or link threads to a persistent identity; metadata still exists (e.g. which link, when). |
+| **Network** | Server sees client IP (unless user uses Tor/VPN). | Same: we don’t hide IP; Tor/VPN is user’s choice. |
+| **Who sees what** | Only the two (or group) participants see content. | Link owner sees messages; we see everything on the server. |
+| **Best for** | “I want private chats with people I know.” | “I want to receive or send feedback/messages without revealing who I am to the link owner (or vice versa).” |
+
+### Summary
+
+- **Signal** = private messaging with strong E2EE and metadata protection; identity is still your number/account.
+- **BurnWare** = link-based, “send to this inbox” with **application-level** sender anonymity (no account, no stored identity); server can read message content (no E2EE) and there is no network-level anonymity.
+
+So Signal is special for **privacy of content and metadata** between known or discoverable identities; BurnWare is special for **sender anonymity toward a link owner** and burn-after-reading, with the caveat that we’re not Tor and we don’t encrypt content on the server.

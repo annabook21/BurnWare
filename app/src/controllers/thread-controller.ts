@@ -69,6 +69,7 @@ export const getThreadWithMessages = asyncHandler(
         thread_id: result.thread.thread_id,
         link_id: result.thread.link_id,
         sender_anonymous_id: result.thread.sender_anonymous_id,
+        sender_public_key: result.thread.sender_public_key,
         burned: result.thread.burned,
         created_at: result.thread.created_at,
         messages: result.messages,
@@ -95,9 +96,9 @@ export const replyToThread = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user!.sub;
     const { thread_id } = req.params as Record<string, string>;
-    const { message } = req.validated as { message: string };
+    const { ciphertext } = req.validated as { ciphertext: string };
 
-    const result = await messageService.sendOwnerReply(thread_id, userId, message);
+    const result = await messageService.sendOwnerReply(thread_id, userId, ciphertext);
 
     ResponseUtils.success(res, result, 201);
   }

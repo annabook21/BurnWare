@@ -13,6 +13,7 @@ export const createLinkSchema = Joi.object({
   display_name: Joi.string().min(1).max(100).required().trim(),
   description: Joi.string().max(500).optional().allow('').trim(),
   expires_in_days: Joi.number().integer().min(1).max(365).optional(),
+  public_key: Joi.string().min(1).max(500).required(),
 });
 
 /**

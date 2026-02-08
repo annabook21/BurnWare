@@ -1,6 +1,6 @@
 # BurnWare - Anonymous Inbox System
 
-Production-ready AWS implementation of BurnWare anonymous inbox with short links, QR codes, and expiring/burnable threads.
+Production-ready AWS implementation of BurnWare: private inbox with short links, QR codes, and expiring/burnable threads. Senders don’t need an account and we don’t store who they are (application-level anonymity only; not Tor-level — see ANONYMITY_RESEARCH.md).
 
 ## Architecture Overview
 

@@ -122,8 +122,10 @@ export class IamPolicyFactory {
     return new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
-        'codedeploy-commands-secure:GetCommand',
+        'codedeploy-commands-secure:GetDeploymentSpecification',
         'codedeploy-commands-secure:PollHostCommand',
+        'codedeploy-commands-secure:PutHostCommandAcknowledgement',
+        'codedeploy-commands-secure:PutHostCommandComplete',
       ],
       resources: ['*'],
     });
