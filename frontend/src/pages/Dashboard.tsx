@@ -4,7 +4,7 @@
  * File size: ~210 lines
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { LinksPanel } from '../components/dashboard/LinksPanel';
 import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
@@ -103,9 +103,11 @@ export const Dashboard: React.FC = () => {
     setMuted(soundsMuted);
   }, [soundsMuted, setMuted]);
 
-  const handleLinkSelect = (linkId: string, linkName: string) => {
+  const handleLinkSelect = useCallback((linkId: string, linkName: string) => {
     setSelectedLink({ linkId, linkName });
-  };
+  }, []);
+
+  const handleThreadsClose = useCallback(() => setSelectedLink(null), []);
 
   const handleLogout = () => {
     if (window.confirm('Sign out of BurnWare?')) {
@@ -129,7 +131,7 @@ export const Dashboard: React.FC = () => {
             <ThreadsPanel
               linkId={selectedLink.linkId}
               linkName={selectedLink.linkName}
-              onClose={() => setSelectedLink(null)}
+              onClose={handleThreadsClose}
               initialX={320}
               initialY={50}
               zIndex={101}

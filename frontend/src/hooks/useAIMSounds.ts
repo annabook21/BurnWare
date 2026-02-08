@@ -3,7 +3,7 @@
  * Classic AIM notification sounds from im_20191103
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Howl } from 'howler';
 
 interface SoundEffects {
@@ -57,27 +57,30 @@ export const useAIMSounds = (): SoundEffects => {
     };
   }, []);
 
-  const play = (key: SoundKey) => () => soundsRef.current?.[key].play();
+  // Stable references: soundsRef is a ref (never changes), .current is read at call time.
+  // useMemo([]) ensures the same function objects are returned on every render,
+  // preventing useCallback/useEffect dep churn in consumers.
+  return useMemo(() => {
+    const play = (key: SoundKey) => () => soundsRef.current?.[key].play();
 
-  const setMuted = (muted: boolean) => {
-    if (soundsRef.current) {
-      Object.values(soundsRef.current).forEach((sound) => sound.mute(muted));
-    }
-  };
+    return {
+      playMessageSend: play('messageSend'),
+      playBurn: play('burn'),
+      playBuddyIn: play('buddyIn'),
+      playBuddyOut: play('buddyOut'),
+      playWelcome: play('welcome'),
+      playYouvGotMail: play('youvGotMail'),
+      playFilesDone: play('filesDone'),
+      setMuted: (muted: boolean) => {
+        if (soundsRef.current) {
+          Object.values(soundsRef.current).forEach((sound) => sound.mute(muted));
+        }
+      },
 
-  return {
-    playMessageSend: play('messageSend'),
-    playBurn: play('burn'),
-    playBuddyIn: play('buddyIn'),
-    playBuddyOut: play('buddyOut'),
-    playWelcome: play('welcome'),
-    playYouvGotMail: play('youvGotMail'),
-    playFilesDone: play('filesDone'),
-    setMuted,
-
-    // Legacy aliases
-    playFireIgnite: play('messageSend'),
-    playFireExtinguish: play('burn'),
-    playMatchStrike: play('buddyIn'),
-  };
+      // Legacy aliases
+      playFireIgnite: play('messageSend'),
+      playFireExtinguish: play('burn'),
+      playMatchStrike: play('buddyIn'),
+    };
+  }, []);
 };
