@@ -34,7 +34,7 @@ interface ThreadData {
   messages: Message[];
 }
 
-const POLL_INTERVAL_MS = 30000; // 30 seconds
+const POLL_INTERVAL_MS = 10000; // 10 seconds — fast updates for open IM windows
 
 export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   linkId,
@@ -47,9 +47,9 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 }) => {
   const [threads, setThreads] = useState<ThreadData[]>([]);
   const [loading, setLoading] = useState(true);
-  const fetchOkRef = React.useRef(false); // tracks whether we've had at least one successful fetch
-  const { playFireExtinguish, playYouvGotMail } = useAIMSounds();
-  const initialLoadRef = React.useRef(true);
+  const fetchOkRef = React.useRef(false);
+  const { playFireExtinguish, playMessageSend } = useAIMSounds();
+  const prevMessageCountRef = React.useRef<number | null>(null);
 
   const fetchThreads = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -106,21 +106,23 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
         }
       }
 
+      // Detect new messages by comparing total message count
+      const totalMessages = activeThreads.reduce((sum, t) => sum + t.messages.length, 0);
+      if (prevMessageCountRef.current !== null && totalMessages > prevMessageCountRef.current) {
+        playMessageSend(); // IM receive sound
+      }
+      prevMessageCountRef.current = totalMessages;
+
       setThreads(activeThreads);
       fetchOkRef.current = true;
-      if (initialLoadRef.current && activeThreads.length > 0) {
-        playYouvGotMail();
-        initialLoadRef.current = false;
-      }
       setLoading(false);
     } catch (error) {
       if (!axios.isCancel(error)) {
         console.error('Failed to fetch threads:', error);
-        // Don't clear threads on error — keep showing the last known state
         setLoading(false);
       }
     }
-  }, [linkId, playYouvGotMail]);
+  }, [linkId, playMessageSend]);
 
   // Recursive setTimeout polling: avoids overlapping requests unlike setInterval
   useEffect(() => {
@@ -143,10 +145,8 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     };
   }, [fetchThreads]);
 
-  // Close panel only when a successful fetch confirms 0 active threads
-  useEffect(() => {
-    if (!loading && threads.length === 0 && fetchOkRef.current) onClose();
-  }, [loading, threads.length, onClose]);
+  // In classic AIM, closing IM windows is explicit (user clicks X).
+  // No auto-close on empty threads.
 
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
@@ -199,8 +199,27 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     }
   };
 
-  if (loading || threads.length === 0) {
+  if (loading) {
     return null;
+  }
+
+  if (threads.length === 0) {
+    // No threads yet — show a single placeholder ChatWindow
+    return (
+      <ChatWindow
+        threadId={`empty-${linkId}`}
+        linkName={linkName}
+        senderAnonymousId=""
+        messages={[]}
+        onSendMessage={() => Promise.resolve()}
+        onBurn={() => Promise.resolve()}
+        onClose={onClose}
+        initialX={initialX}
+        initialY={initialY}
+        zIndex={zIndex}
+        onFocus={onFocus}
+      />
+    );
   }
 
   return (

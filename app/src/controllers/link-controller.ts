@@ -120,6 +120,18 @@ export const updateLink = asyncHandler(
 );
 
 /**
+ * Get message counts for all user links (lightweight polling)
+ * GET /api/v1/dashboard/links/counts
+ */
+export const getMessageCounts = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = req.user!.sub;
+    const counts = await linkService.getMessageCounts(userId);
+    ResponseUtils.success(res, counts);
+  }
+);
+
+/**
  * Delete link
  * DELETE /api/v1/dashboard/links/:link_id
  */

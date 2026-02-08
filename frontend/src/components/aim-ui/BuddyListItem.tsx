@@ -15,7 +15,9 @@ interface BuddyListItemProps {
   name: string;
   status: StatusType;
   messageCount?: number;
+  hasNewMessages?: boolean;
   onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const ItemContainer = styled.div<{ status: StatusType }>`
@@ -49,7 +51,14 @@ const ItemName = styled.span`
   white-space: nowrap;
 `;
 
-const MessageBadge = styled.span`
+const pulseKeyframes = `
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); background: ${aimTheme.colors.brandOrange}; }
+    50% { transform: scale(1.3); background: #FF3333; }
+  }
+`;
+
+const MessageBadge = styled.span<{ $pulsing?: boolean }>`
   background: ${aimTheme.colors.brandOrange};
   color: ${aimTheme.colors.white};
   border-radius: 10px;
@@ -58,21 +67,29 @@ const MessageBadge = styled.span`
   font-weight: ${aimTheme.fonts.weight.bold};
   min-width: 18px;
   text-align: center;
+  ${(props) => props.$pulsing && `animation: badgePulse 1s ease-in-out infinite;`}
 `;
 
 export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
   name,
   status,
   messageCount = 0,
+  hasNewMessages = false,
   onClick,
+  onContextMenu,
 }) => {
   return (
-    <ItemContainer status={status} onClick={onClick}>
-      <ItemLeft>
-        <StatusIndicator status={status} size={14} />
-        <ItemName>{name}</ItemName>
-      </ItemLeft>
-      {messageCount > 0 && <MessageBadge>{messageCount}</MessageBadge>}
-    </ItemContainer>
+    <>
+      <style>{pulseKeyframes}</style>
+      <ItemContainer status={status} onClick={onClick} onContextMenu={onContextMenu}>
+        <ItemLeft>
+          <StatusIndicator status={status} size={14} />
+          <ItemName>{name}</ItemName>
+        </ItemLeft>
+        {messageCount > 0 && (
+          <MessageBadge $pulsing={hasNewMessages}>{messageCount}</MessageBadge>
+        )}
+      </ItemContainer>
+    </>
   );
 });

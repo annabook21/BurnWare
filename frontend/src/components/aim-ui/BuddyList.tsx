@@ -13,7 +13,9 @@ import type { Link, StatusType } from '../../types';
 
 interface BuddyListProps {
   links: Link[];
+  newMessageLinkIds?: Set<string>;
   onLinkClick: (linkId: string) => void;
+  onLinkContextMenu?: (linkId: string, e: React.MouseEvent) => void;
   onCreateLink: () => void;
   onSettings?: () => void;
   initialX?: number;
@@ -137,7 +139,9 @@ const getStatus = (link: Link): StatusType => {
 
 export const BuddyList: React.FC<BuddyListProps> = ({
   links,
+  newMessageLinkIds,
   onLinkClick,
+  onLinkContextMenu,
   onCreateLink,
   onSettings,
   initialX = 50,
@@ -200,7 +204,9 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 name={link.display_name}
                 status="active"
                 messageCount={link.message_count}
+                hasNewMessages={newMessageLinkIds?.has(link.link_id)}
                 onClick={() => handleLinkClick(link.link_id)}
+                onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
               />
             ))}
 
@@ -221,7 +227,9 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                     name={link.display_name}
                     status="expiring"
                     messageCount={link.message_count}
+                    hasNewMessages={newMessageLinkIds?.has(link.link_id)}
                     onClick={() => handleLinkClick(link.link_id)}
+                    onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
                   />
                 ))}
             </>
@@ -243,6 +251,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 status="expired"
                 messageCount={0}
                 onClick={() => handleLinkClick(link.link_id)}
+                onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
               />
             ))}
         </ScrollArea>

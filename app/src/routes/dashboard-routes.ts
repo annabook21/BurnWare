@@ -8,6 +8,7 @@ import { Router } from 'express';
 import {
   createLink,
   getUserLinks,
+  getMessageCounts,
   getLinkById,
   updateLink,
   deleteLink,
@@ -59,6 +60,9 @@ router.post(
 
 // Get all user links
 router.get('/api/v1/dashboard/links', validateQuery(paginationSchema), getUserLinks);
+
+// Get message counts (lightweight polling) — must be before /:link_id
+router.get('/api/v1/dashboard/links/counts', getMessageCounts);
 
 // Get specific link
 router.get('/api/v1/dashboard/links/:link_id', validateParams(linkIdSchema), getLinkById);

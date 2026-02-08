@@ -171,6 +171,13 @@ export class LinkService {
   }
 
   /**
+   * Get message counts for all user links (lightweight polling)
+   */
+  async getMessageCounts(userId: string): Promise<{ link_id: string; message_count: number }[]> {
+    return this.linkModel.getMessageCounts(userId);
+  }
+
+  /**
    * Get link metadata (public endpoint)
    */
   async getLinkMetadata(linkId: string): Promise<{

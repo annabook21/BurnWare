@@ -1,16 +1,16 @@
 /**
  * Dashboard Page
  * Main dashboard with AIM multi-window interface
- * File size: ~210 lines
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { LinksPanel } from '../components/dashboard/LinksPanel';
 import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
 import { WindowManager } from '../components/aim-ui/WindowManager';
 import { SoundManager } from '../components/aim-ui/SoundManager';
 import { useAIMSounds } from '../hooks/useAIMSounds';
+import { useMessagePolling } from '../hooks/useMessagePolling';
 import { aimTheme } from '../theme/aim-theme';
 import { signOut } from '../config/cognito-config';
 
@@ -85,14 +85,19 @@ const Clock = styled.div`
   font-size: ${aimTheme.fonts.size.small};
 `;
 
+interface OpenLink {
+  linkId: string;
+  linkName: string;
+}
+
 export const Dashboard: React.FC = () => {
   const [soundsMuted, setSoundsMuted] = useState(false);
-  const [selectedLink, setSelectedLink] = useState<{ linkId: string; linkName: string } | null>(
-    null
-  );
+  const [openLinks, setOpenLinks] = useState<Map<string, OpenLink>>(new Map());
   const [showStartMenu, setShowStartMenu] = useState(false);
   const [time, setTime] = useState(new Date());
-  const { setMuted, playBuddyOut } = useAIMSounds();
+  const { setMuted, playBuddyOut, playYouvGotMail } = useAIMSounds();
+  const { links, loading, newMessageLinkIds, acknowledgeLink, refreshLinks } = useMessagePolling();
+  const prevNewIdsRef = useRef<Set<string>>(new Set());
 
   React.useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -103,40 +108,87 @@ export const Dashboard: React.FC = () => {
     setMuted(soundsMuted);
   }, [soundsMuted, setMuted]);
 
-  const handleLinkSelect = useCallback((linkId: string, linkName: string) => {
-    setSelectedLink({ linkId, linkName });
+  // Auto-popup: when new messages detected, open ThreadsPanel + play sound
+  useEffect(() => {
+    if (newMessageLinkIds.size === 0) return;
+
+    // Find truly new IDs (not already seen in previous render)
+    const freshIds: string[] = [];
+    for (const id of newMessageLinkIds) {
+      if (!prevNewIdsRef.current.has(id)) {
+        freshIds.push(id);
+      }
+    }
+    prevNewIdsRef.current = new Set(newMessageLinkIds);
+
+    if (freshIds.length === 0) return;
+
+    // Auto-open ThreadsPanel for each new-message link
+    setOpenLinks((prev) => {
+      const next = new Map(prev);
+      for (const linkId of freshIds) {
+        if (!next.has(linkId)) {
+          const link = links.find((l) => l.link_id === linkId);
+          next.set(linkId, { linkId, linkName: link?.display_name || 'Unknown' });
+        }
+      }
+      return next;
+    });
+
+    playYouvGotMail();
+  }, [newMessageLinkIds, links, playYouvGotMail]);
+
+  const handleOpenThreads = useCallback((linkId: string, linkName: string) => {
+    setOpenLinks((prev) => {
+      const next = new Map(prev);
+      next.set(linkId, { linkId, linkName });
+      return next;
+    });
   }, []);
 
-  const handleThreadsClose = useCallback(() => setSelectedLink(null), []);
+  const handleCloseThreads = useCallback((linkId: string) => {
+    setOpenLinks((prev) => {
+      const next = new Map(prev);
+      next.delete(linkId);
+      return next;
+    });
+    acknowledgeLink(linkId);
+  }, [acknowledgeLink]);
 
   const handleLogout = () => {
     if (window.confirm('Sign out of BurnWare?')) {
       playBuddyOut();
       signOut();
-      // Small delay so the sound plays before reload
       setTimeout(() => window.location.reload(), 500);
     }
   };
+
+  const openLinksArray = Array.from(openLinks.values());
 
   return (
     <WindowManager>
       {(_windowManager) => (
         <Desktop>
           <LinksPanel
-            onLinkSelect={handleLinkSelect}
+            links={links}
+            loading={loading}
+            newMessageLinkIds={newMessageLinkIds}
+            onOpenThreads={handleOpenThreads}
+            onLinksChanged={refreshLinks}
             zIndex={100}
           />
 
-          {selectedLink && (
+          {openLinksArray.map((ol, index) => (
             <ThreadsPanel
-              linkId={selectedLink.linkId}
-              linkName={selectedLink.linkName}
-              onClose={handleThreadsClose}
-              initialX={320}
-              initialY={50}
-              zIndex={101}
+              key={ol.linkId}
+              linkId={ol.linkId}
+              linkName={ol.linkName}
+              onClose={() => handleCloseThreads(ol.linkId)}
+              initialX={320 + index * 30}
+              initialY={50 + index * 30}
+              zIndex={101 + index}
             />
-          )}
+          ))}
 
           <Taskbar>
             <StartButton onClick={() => setShowStartMenu(!showStartMenu)}>
@@ -172,7 +224,7 @@ export const Dashboard: React.FC = () => {
                 }}
                 onClick={handleLogout}
               >
-                🚪 Sign Out
+                Sign Out
               </button>
             </div>
           )}

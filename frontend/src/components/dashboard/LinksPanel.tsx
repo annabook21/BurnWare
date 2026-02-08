@@ -1,16 +1,15 @@
 /**
  * Links Panel Component
- * Links management with AIM styling
- * File size: ~245 lines
+ * Links management with AIM styling — receives data from parent via props
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { BuddyList } from '../aim-ui/BuddyList';
+import { BuddyContextMenu } from '../aim-ui/BuddyContextMenu';
 import { AwayMessageDialog } from '../aim-ui/AwayMessageDialog';
 import { CreateLinkDialog } from './CreateLinkDialog';
 import { QRCodeDialog } from './QRCodeDialog';
-import axios from 'axios';
 import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -20,10 +19,12 @@ import { generateKeyPair } from '../../utils/e2ee';
 import { saveLinkKey } from '../../utils/key-store';
 import type { Link } from '../../types';
 
-const POLL_INTERVAL_MS = 30000; // 30 seconds
-
 interface LinksPanelProps {
-  onLinkSelect: (linkId: string, linkName: string) => void;
+  links: Link[];
+  loading: boolean;
+  newMessageLinkIds: Set<string>;
+  onOpenThreads: (linkId: string, linkName: string) => void;
+  onLinksChanged: () => Promise<void>;
   zIndex?: number;
   onFocus?: () => void;
 }
@@ -32,65 +33,40 @@ const Container = styled.div`
   position: relative;
 `;
 
-export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, onFocus }) => {
+export const LinksPanel: React.FC<LinksPanelProps> = ({
+  links,
+  loading,
+  newMessageLinkIds,
+  onOpenThreads,
+  onLinksChanged,
+  zIndex,
+  onFocus,
+}) => {
   const { playFilesDone } = useAIMSounds();
-  const [links, setLinks] = useState<Link[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedLink, setSelectedLink] = useState<Link | null>(null);
   const [showDescDialog, setShowDescDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ linkId: string; x: number; y: number } | null>(null);
 
-  const fetchLinks = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const token = await getAccessToken();
-      const response = await apiClient.get(endpoints.dashboard.links(), {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      });
-
-      setLinks(response.data.data || []);
-      setLoading(false);
-    } catch (error) {
-      if (!axios.isCancel(error)) {
-        console.error('Failed to fetch links:', error);
-        setLoading(false);
-      }
-    }
+  const handleContextMenu = useCallback((linkId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ linkId, x: e.clientX, y: e.clientY });
   }, []);
 
-  // Recursive setTimeout polling: avoids overlapping requests
-  useEffect(() => {
-    const controller = new AbortController();
-    let timeoutId: ReturnType<typeof setTimeout>;
-    let stopped = false;
-
-    const poll = async () => {
-      await fetchLinks(controller.signal);
-      if (!stopped) {
-        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
-      }
-    };
-
-    poll();
-    return () => {
-      stopped = true;
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [fetchLinks]);
+  const getContextLink = () => links.find((l) => l.link_id === contextMenu?.linkId) || null;
 
   const handleLinkClick = (linkId: string) => {
     const link = links.find((l) => l.link_id === linkId);
     if (!link) return;
 
-    // Always make QR/share available
-    setSelectedLink(link);
-    setShowQRDialog(true);
-
-    // Also open threads panel if there are messages
     if (link.message_count > 0) {
-      onLinkSelect(linkId, link.display_name);
+      // Has messages → open threads directly (classic AIM: click buddy → open IM)
+      onOpenThreads(linkId, link.display_name);
+    } else {
+      // No messages → show QR/share dialog (primary action for empty links)
+      setSelectedLink(link);
+      setShowQRDialog(true);
     }
   };
 
@@ -100,23 +76,19 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
   const handleLinkCreated = async (data: { display_name: string; description?: string }) => {
     try {
-      // Generate E2EE key pair — public key goes to server, private stays local
       const { publicKeyBase64, privateKeyJwk } = await generateKeyPair();
 
       const token = await getAccessToken();
       const response = await apiClient.post(
         endpoints.dashboard.links(),
         { ...data, public_key: publicKeyBase64 },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Store private key in IndexedDB keyed by link_id
       const newLink = response.data.data;
       await saveLinkKey(newLink.link_id, privateKeyJwk);
 
-      await fetchLinks();
+      await onLinksChanged();
       setShowCreateDialog(false);
       playFilesDone();
 
@@ -140,7 +112,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
       toast.success('Link deleted.');
       setShowQRDialog(false);
       setSelectedLink(null);
-      await fetchLinks();
+      await onLinksChanged();
     } catch (error) {
       console.error('Failed to delete link:', error);
       toast.error('Failed to delete link.');
@@ -155,12 +127,10 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
       await apiClient.patch(
         endpoints.dashboard.link(selectedLink.link_id),
         { description },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      await fetchLinks();
+      await onLinksChanged();
       setShowDescDialog(false);
     } catch (error) {
       console.error('Failed to update description:', error);
@@ -186,7 +156,9 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
     <Container>
       <BuddyList
         links={links}
+        newMessageLinkIds={newMessageLinkIds}
         onLinkClick={handleLinkClick}
+        onLinkContextMenu={handleContextMenu}
         onCreateLink={handleCreateLink}
         zIndex={zIndex}
         onFocus={onFocus}
@@ -220,6 +192,29 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
           onDelete={handleDeleteLink}
         />
       )}
+
+      {contextMenu && (() => {
+        const ctxLink = getContextLink();
+        if (!ctxLink) return null;
+        return (
+          <BuddyContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            hasMessages={ctxLink.message_count > 0}
+            onOpenThreads={() => onOpenThreads(ctxLink.link_id, ctxLink.display_name)}
+            onGetBuddyInfo={() => {
+              setSelectedLink(ctxLink);
+              setShowQRDialog(true);
+            }}
+            onEditDescription={() => {
+              setSelectedLink(ctxLink);
+              setShowDescDialog(true);
+            }}
+            onDelete={() => handleDeleteLink(ctxLink.link_id)}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
     </Container>
   );
 };

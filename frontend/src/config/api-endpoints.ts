@@ -7,6 +7,7 @@ const API_BASE = '/api/v1';
 export const endpoints = {
   dashboard: {
     links: () => `${API_BASE}/dashboard/links`,
+    linkCounts: () => `${API_BASE}/dashboard/links/counts`,
     link: (linkId: string) => `${API_BASE}/dashboard/links/${linkId}`,
     threads: (linkId: string) => `${API_BASE}/dashboard/links/${linkId}/threads`,
     thread: (threadId: string) => `${API_BASE}/dashboard/threads/${threadId}`,

@@ -155,6 +155,25 @@ export class LinkModel {
   }
 
   /**
+   * Get message counts for all user links (lightweight polling)
+   */
+  async getMessageCounts(userId: string): Promise<{ link_id: string; message_count: number }[]> {
+    const query = `
+      SELECT link_id, message_count FROM links
+      WHERE owner_user_id = $1 AND burned = FALSE
+      ORDER BY created_at DESC
+    `;
+
+    try {
+      const result = await this.db.query(query, [userId]);
+      return result.rows;
+    } catch (error) {
+      logger.error('Failed to get message counts', { error, user_id: userId });
+      throw new DatabaseError('Failed to get message counts', error as Error);
+    }
+  }
+
+  /**
    * Delete link
    */
   async delete(linkId: string): Promise<void> {
