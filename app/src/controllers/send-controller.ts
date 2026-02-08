@@ -59,6 +59,26 @@ export const sendMessage = asyncHandler(
 );
 
 /**
+ * Anonymous sender follow-up reply to existing thread
+ * POST /api/v1/thread/:thread_id/reply
+ * Possession-based auth: knowing the thread_id IS the auth.
+ */
+export const sendAnonymousReply = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { thread_id } = req.params as Record<string, string>;
+    const { ciphertext, message } = req.validated as { ciphertext?: string; message?: string };
+    const content = (ciphertext || message)!;
+
+    const result = await messageService.sendAnonymousReply(thread_id, content);
+
+    ResponseUtils.success(res, {
+      message_id: result.message_id,
+      created_at: result.created_at,
+    }, 201);
+  }
+);
+
+/**
  * Get thread for anonymous sender (possession-based: thread_id in URL is the secret)
  * GET /api/v1/thread/:thread_id
  * Returns 404 for non-existent or burned — same response to avoid enumeration.

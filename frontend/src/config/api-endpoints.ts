@@ -18,5 +18,6 @@ export const endpoints = {
     linkMetadata: (linkId: string) => `${API_BASE}/link/${linkId}/metadata`,
     send: () => `${API_BASE}/send`,
     thread: (threadId: string) => `${API_BASE}/thread/${threadId}`,
+    threadReply: (threadId: string) => `${API_BASE}/thread/${threadId}/reply`,
   },
 };

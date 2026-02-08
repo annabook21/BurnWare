@@ -1,21 +1,22 @@
 /**
  * Send Message Window Component
- * Anonymous message sending interface (AIM style)
- * File size: ~220 lines
+ * Anonymous message sending interface (AIM style).
+ * After the first message, transforms into a live ChatWindow-style conversation.
+ * File size: ~310 lines
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
-import { ThreadView } from './ThreadView';
 import { aimTheme } from '../../theme/aim-theme';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import axios from 'axios';
 import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
-import { encrypt } from '../../utils/e2ee';
-import { saveSenderKey } from '../../utils/key-store';
+import { encrypt, decrypt } from '../../utils/e2ee';
+import { saveSenderKey, getSenderKey, addSentMessage } from '../../utils/key-store';
+import type { Message } from '../../types';
 
 interface SendMessageWindowProps {
   linkId: string;
@@ -29,7 +30,7 @@ const Container = styled.div`
 `;
 
 const InfoSection = styled.div`
-  padding: ${aimTheme.spacing.md};
+  padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
   background: linear-gradient(to bottom, #FFFFFF, #F0F0F0);
   border-bottom: 1px solid ${aimTheme.colors.darkGray};
 `;
@@ -37,7 +38,6 @@ const InfoSection = styled.div`
 const LinkTitle = styled.div`
   font-weight: ${aimTheme.fonts.weight.bold};
   font-size: ${aimTheme.fonts.size.medium};
-  margin-bottom: ${aimTheme.spacing.sm};
   display: flex;
   align-items: center;
   gap: ${aimTheme.spacing.sm};
@@ -49,7 +49,7 @@ const Description = styled.div`
   font-style: italic;
 `;
 
-const MessageSection = styled.div`
+const ComposeSection = styled.div`
   flex: 1;
   padding: ${aimTheme.spacing.md};
   display: flex;
@@ -61,7 +61,7 @@ const Label = styled.label`
   margin-bottom: ${aimTheme.spacing.sm};
 `;
 
-const TextArea = styled.textarea`
+const ComposeTextArea = styled.textarea`
   flex: 1;
   border: ${aimTheme.borders.inset};
   padding: ${aimTheme.spacing.md};
@@ -69,17 +69,7 @@ const TextArea = styled.textarea`
   font-size: ${aimTheme.fonts.size.normal};
   resize: none;
   background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const CharCount = styled.div`
-  font-size: ${aimTheme.fonts.size.tiny};
-  color: ${aimTheme.colors.darkGray};
-  text-align: right;
-  margin-top: ${aimTheme.spacing.sm};
+  &:focus { outline: none; }
 `;
 
 const PrivacyNote = styled.div`
@@ -99,37 +89,93 @@ const ButtonBar = styled.div`
   margin-top: ${aimTheme.spacing.md};
 `;
 
-const SendButton = styled.button`
-  padding: 6px 20px;
+const AIMButton = styled.button`
+  padding: 4px 12px;
   border: ${aimTheme.borders.outset};
   background: ${aimTheme.colors.gray};
   font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.normal};
   font-weight: bold;
   cursor: pointer;
-  min-width: 100px;
+  &:active { border-style: inset; }
+  &:disabled { color: ${aimTheme.colors.darkGray}; cursor: not-allowed; }
+`;
 
-  &:active {
-    border-style: inset;
-  }
+// ── Live chat styles (post-send) ──
 
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
+const MessageArea = styled.div`
+  flex: 1;
+  background: ${aimTheme.colors.white};
+  border: ${aimTheme.borders.inset};
+  padding: ${aimTheme.spacing.md};
+  overflow-y: auto;
+  margin: ${aimTheme.spacing.sm};
+  font-family: ${aimTheme.fonts.primary};
+  font-size: ${aimTheme.fonts.size.normal};
+`;
+
+const MessageBubble = styled.div`
+  margin: ${aimTheme.spacing.sm} 0;
+  padding: ${aimTheme.spacing.sm} 0;
+  word-wrap: break-word;
+`;
+
+const Timestamp = styled.span`
+  font-size: ${aimTheme.fonts.size.tiny};
+  color: #666;
+  margin-right: ${aimTheme.spacing.sm};
+`;
+
+const Sender = styled.span<{ $isOwner: boolean }>`
+  font-weight: ${aimTheme.fonts.weight.bold};
+  color: ${(p) => (p.$isOwner ? aimTheme.colors.blue : aimTheme.colors.fireRed)};
+  &::before { content: ${(p) => (p.$isOwner ? "'💬 '" : "'👤 '")}; }
+`;
+
+const MessageContent = styled.div`
+  color: ${aimTheme.colors.black};
+  margin-top: 2px;
+  line-height: 1.4;
+`;
+
+const InputArea = styled.div`
+  border-top: 1px solid ${aimTheme.colors.darkGray};
+  background: ${aimTheme.colors.gray};
+  padding: ${aimTheme.spacing.sm};
+`;
+
+const ChatInput = styled.textarea`
+  width: calc(100% - 8px);
+  height: 50px;
+  border: ${aimTheme.borders.inset};
+  padding: ${aimTheme.spacing.sm};
+  font-family: ${aimTheme.fonts.primary};
+  font-size: ${aimTheme.fonts.size.normal};
+  resize: none;
+  background: ${aimTheme.colors.white};
+  margin: ${aimTheme.spacing.sm};
+  &:focus { outline: none; }
+`;
+
+const BookmarkBar = styled.div`
+  font-size: ${aimTheme.fonts.size.tiny};
+  color: #666;
+  text-align: center;
+  padding: 2px ${aimTheme.spacing.sm};
+  border-top: 1px solid ${aimTheme.colors.darkGray};
+  a { color: ${aimTheme.colors.blue}; }
 `;
 
 const MAX_LENGTH = 5000;
-
 const WINDOW_WIDTH = 520;
 const WINDOW_HEIGHT = 480;
+const POLL_INTERVAL_MS = 10000;
 
 function useCenteredPosition(width: number, height: number) {
   const [pos, setPos] = useState(() => ({
     x: Math.max(0, (window.innerWidth - width) / 2),
     y: Math.max(0, (window.innerHeight - height) / 2 - 20),
   }));
-
   useEffect(() => {
     const onResize = () =>
       setPos({
@@ -139,25 +185,13 @@ function useCenteredPosition(width: number, height: number) {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [width, height]);
-
   return pos;
 }
 
-const ReplyLink = styled.a`
-  color: ${aimTheme.colors.blue};
-  text-decoration: underline;
-  word-break: break-all;
-  font-size: ${aimTheme.fonts.size.small};
-  &:hover { color: ${aimTheme.colors.blueGradientEnd}; }
-`;
-
-const SuccessSection = styled.div`
-  padding: ${aimTheme.spacing.md};
-  background: #E8F8E8;
-  border: 1px solid #28A745;
-  margin: ${aimTheme.spacing.md};
-  font-size: ${aimTheme.fonts.size.small};
-`;
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+};
 
 export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) => {
   const [message, setMessage] = useState('');
@@ -165,66 +199,114 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sentThreadId, setSentThreadId] = useState<string | null>(null);
-  const { playMatchStrike } = useAIMSounds();
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const messageEndRef = useRef<HTMLDivElement>(null);
+  const { playMatchStrike, playMessageSend } = useAIMSounds();
+  const prevMessageCountRef = useRef<number>(0);
   const center = useCenteredPosition(WINDOW_WIDTH, WINDOW_HEIGHT);
 
+  // Auto-scroll on new messages
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Fetch link metadata
   useEffect(() => {
     const controller = new AbortController();
-    const fetchLinkMetadata = async () => {
+    (async () => {
       try {
         const response = await apiClient.get(
           endpoints.public.linkMetadata(linkId),
           { signal: controller.signal }
         );
         setLinkInfo(response.data.data);
-        setLoading(false);
       } catch (error) {
-        if (!axios.isCancel(error)) {
-          console.error('Failed to fetch link metadata:', error);
-          setLoading(false);
-        }
+        if (!axios.isCancel(error)) console.error('Failed to fetch link metadata:', error);
+      } finally {
+        setLoading(false);
       }
-    };
-    fetchLinkMetadata();
+    })();
     return () => controller.abort();
   }, [linkId]);
 
-  const handleSend = async () => {
-    if (!message.trim() || sending) return;
-
-    setSending(true);
+  // Poll thread messages (only after first send)
+  const fetchMessages = useCallback(async (signal?: AbortSignal) => {
+    if (!sentThreadId) return;
     try {
-      let body: Record<string, string>;
+      const res = await apiClient.get(endpoints.public.thread(sentThreadId), { signal });
+      const data = res.data?.data;
+      const msgList: Message[] = Array.isArray(data?.messages) ? data.messages : [];
 
-      if (linkInfo?.public_key) {
-        // E2EE: encrypt message with link's public key
-        const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
-          await encrypt(message.trim(), linkInfo.public_key);
-        body = {
-          recipient_link_id: linkId,
-          ciphertext,
-          sender_public_key: ephemeralPublicKeyBase64,
-        };
-        // Store ephemeral private key so sender can decrypt owner replies later
-        const res = await apiClient.post(endpoints.public.send(), body);
-        const data = res.data?.data as { thread_id?: string } | undefined;
-        const threadId = data?.thread_id;
-        if (threadId) {
-          saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessage: message.trim() });
-          setSentThreadId(threadId);
-        }
-      } else {
-        // Legacy plaintext (link has no public_key)
-        body = { recipient_link_id: linkId, message: message.trim() };
-        const res = await apiClient.post(endpoints.public.send(), body);
-        const data = res.data?.data as { thread_id?: string } | undefined;
-        if (data?.thread_id) {
-          setSentThreadId(data.thread_id);
+      // E2EE: decrypt messages client-side
+      const senderData = getSenderKey(sentThreadId);
+      let anonIndex = 0;
+      for (const msg of msgList) {
+        if (msg.sender_type === 'anonymous') {
+          msg.content = senderData?.sentMessages[anonIndex] || '[Your message]';
+          anonIndex++;
+        } else if (msg.sender_type === 'owner' && senderData?.privateKeyJwk) {
+          try {
+            msg.content = await decrypt(msg.content, senderData.privateKeyJwk);
+          } catch {
+            msg.content = '[Unable to decrypt]';
+          }
+        } else if (msg.sender_type === 'owner') {
+          msg.content = '[Key not available]';
         }
       }
 
+      // Play sound on new messages from recipient
+      if (msgList.length > prevMessageCountRef.current) {
+        const hasNewOwnerMsg = msgList.slice(prevMessageCountRef.current).some(m => m.sender_type === 'owner');
+        if (hasNewOwnerMsg) playMessageSend();
+      }
+      prevMessageCountRef.current = msgList.length;
+
+      setChatMessages(msgList);
+    } catch (err) {
+      if (!axios.isCancel(err)) console.error('Failed to fetch thread:', err);
+    }
+  }, [sentThreadId, playMessageSend]);
+
+  useEffect(() => {
+    if (!sentThreadId) return;
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let stopped = false;
+    const poll = async () => {
+      await fetchMessages(controller.signal);
+      if (!stopped) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+    };
+    poll();
+    return () => { stopped = true; clearTimeout(timeoutId); controller.abort(); };
+  }, [fetchMessages, sentThreadId]);
+
+  // First message send
+  const handleFirstSend = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    try {
+      let body: Record<string, string>;
+      if (linkInfo?.public_key) {
+        const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
+          await encrypt(message.trim(), linkInfo.public_key);
+        body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64 };
+        const res = await apiClient.post(endpoints.public.send(), body);
+        const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
+        if (threadId) {
+          saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessages: [message.trim()] });
+          setSentThreadId(threadId);
+        }
+      } else {
+        body = { recipient_link_id: linkId, message: message.trim() };
+        const res = await apiClient.post(endpoints.public.send(), body);
+        const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
+        if (threadId) {
+          saveSenderKey(threadId, { privateKeyJwk: {} as JsonWebKey, sentMessages: [message.trim()] });
+          setSentThreadId(threadId);
+        }
+      }
       playMatchStrike();
-      toast.success('Message sent!');
       setMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -234,14 +316,44 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     }
   };
 
+  // Follow-up message send (live chat)
+  const handleFollowUp = async () => {
+    if (!message.trim() || sending || !sentThreadId) return;
+    setSending(true);
+    try {
+      let body: Record<string, string>;
+      if (linkInfo?.public_key) {
+        const { ciphertext } = await encrypt(message.trim(), linkInfo.public_key);
+        body = { ciphertext };
+      } else {
+        body = { message: message.trim() };
+      }
+      await apiClient.post(endpoints.public.threadReply(sentThreadId), body);
+      addSentMessage(sentThreadId, message.trim());
+      playMatchStrike();
+      setMessage('');
+      await fetchMessages();
+    } catch (error) {
+      console.error('Failed to send reply:', error);
+      toast.error('Failed to send message. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sentThreadId ? handleFollowUp() : handleFirstSend();
+    }
+  };
+
   const threadUrl = sentThreadId ? `${window.location.origin}/thread/${sentThreadId}` : '';
 
   if (loading) {
     return (
       <WindowFrame title="Loading..." width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
-        <Container>
-          <div style={{ padding: aimTheme.spacing.md }}>Loading...</div>
-        </Container>
+        <Container><div style={{ padding: aimTheme.spacing.md }}>Loading...</div></Container>
       </WindowFrame>
     );
   }
@@ -249,61 +361,89 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   if (!linkInfo) {
     return (
       <WindowFrame title="Error" width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
+        <Container><div style={{ padding: aimTheme.spacing.md }}>Link not found or expired.</div></Container>
+      </WindowFrame>
+    );
+  }
+
+  // ── Live chat mode (after first send) ──
+  if (sentThreadId) {
+    return (
+      <WindowFrame title={`Chat — ${linkInfo.display_name}`} width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
         <Container>
-          <div style={{ padding: aimTheme.spacing.md }}>Link not found or expired.</div>
+          <MessageArea>
+            {chatMessages.length === 0 ? (
+              <div style={{ color: aimTheme.colors.darkGray, fontStyle: 'italic' }}>
+                Sending your message...
+              </div>
+            ) : (
+              chatMessages.map((msg) => (
+                <MessageBubble key={msg.message_id}>
+                  <div>
+                    <Timestamp>{formatTime(msg.created_at)}</Timestamp>
+                    <Sender $isOwner={msg.sender_type === 'owner'}>
+                      {msg.sender_type === 'owner' ? 'Recipient' : 'You'}:
+                    </Sender>
+                  </div>
+                  <MessageContent>{msg.content}</MessageContent>
+                </MessageBubble>
+              ))
+            )}
+            <div ref={messageEndRef} />
+          </MessageArea>
+          <InputArea>
+            <ChatInput
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a follow-up message..."
+              maxLength={MAX_LENGTH}
+            />
+            <ButtonBar>
+              <AIMButton onClick={handleFollowUp} disabled={!message.trim() || sending}>
+                {sending ? 'Sending...' : 'Send'}
+              </AIMButton>
+            </ButtonBar>
+          </InputArea>
+          <BookmarkBar>
+            Bookmark to return later: <a href={threadUrl} target="_blank" rel="noopener noreferrer">{threadUrl}</a>
+          </BookmarkBar>
         </Container>
       </WindowFrame>
     );
   }
 
+  // ── Compose mode (first message) ──
   return (
-    <WindowFrame title="📨 Send Anonymous Message" width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
+    <WindowFrame title="Send Anonymous Message" width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
       <Container>
         <InfoSection>
           <LinkTitle>
-            <span>📨 Sending to:</span>
+            <span>Sending to:</span>
             <span>{linkInfo.display_name}</span>
           </LinkTitle>
           {linkInfo.description && <Description>{linkInfo.description}</Description>}
         </InfoSection>
-
-        {sentThreadId ? (
-          <MessageSection>
-            <ThreadView threadId={sentThreadId} compact />
-            <SuccessSection>
-              Bookmark to check back later:&nbsp;
-              <ReplyLink href={threadUrl} target="_blank" rel="noopener noreferrer">
-                {threadUrl}
-              </ReplyLink>
-            </SuccessSection>
-            <ButtonBar>
-              <SendButton onClick={() => setSentThreadId(null)}>📤 Send another message</SendButton>
-            </ButtonBar>
-          </MessageSection>
-        ) : (
-          <MessageSection>
-            <Label>Your Anonymous Message:</Label>
-            <TextArea
-              value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
-              placeholder="Type your anonymous message here..."
-              maxLength={MAX_LENGTH}
-            />
-            <CharCount>{MAX_LENGTH - message.length} characters remaining</CharCount>
-
+        <ComposeSection>
+          <Label>Your Anonymous Message:</Label>
+          <ComposeTextArea
+            value={message}
+            onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your anonymous message here..."
+            maxLength={MAX_LENGTH}
+          />
           <PrivacyNote>
             {linkInfo?.public_key
-              ? '🔒 End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
-              : '🔒 Your identity is anonymous — no account or IP stored.'}
+              ? 'End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
+              : 'Your identity is anonymous — no account or IP stored.'}
           </PrivacyNote>
-
-            <ButtonBar>
-              <SendButton onClick={handleSend} disabled={!message.trim() || sending}>
-                {sending ? 'Sending...' : '📤 Send Message'}
-              </SendButton>
-            </ButtonBar>
-          </MessageSection>
-        )}
+          <ButtonBar>
+            <AIMButton onClick={handleFirstSend} disabled={!message.trim() || sending}>
+              {sending ? 'Sending...' : 'Send Message'}
+            </AIMButton>
+          </ButtonBar>
+        </ComposeSection>
       </Container>
     </WindowFrame>
   );

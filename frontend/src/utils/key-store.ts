@@ -64,20 +64,33 @@ export async function getLinkKey(linkId: string): Promise<JsonWebKey | undefined
 
 // ── Sender ephemeral keys (sessionStorage, per-tab lifetime) ──
 
-interface SenderThreadData {
+export interface SenderThreadData {
   privateKeyJwk: JsonWebKey;
-  sentMessage: string;
+  sentMessages: string[];
 }
 
 export function saveSenderKey(threadId: string, data: SenderThreadData): void {
   sessionStorage.setItem(`bw:thread:${threadId}`, JSON.stringify(data));
 }
 
+export function addSentMessage(threadId: string, plaintext: string): void {
+  const existing = getSenderKey(threadId);
+  if (existing) {
+    existing.sentMessages.push(plaintext);
+    saveSenderKey(threadId, existing);
+  }
+}
+
 export function getSenderKey(threadId: string): SenderThreadData | null {
   const raw = sessionStorage.getItem(`bw:thread:${threadId}`);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as SenderThreadData;
+    const parsed = JSON.parse(raw);
+    // Migrate legacy format (sentMessage → sentMessages)
+    if (parsed.sentMessage && !parsed.sentMessages) {
+      return { privateKeyJwk: parsed.privateKeyJwk, sentMessages: [parsed.sentMessage] };
+    }
+    return parsed as SenderThreadData;
   } catch {
     return null;
   }

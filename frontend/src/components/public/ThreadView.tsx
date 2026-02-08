@@ -92,10 +92,12 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
 
       // E2EE: decrypt messages client-side using sender's ephemeral key
       const senderData = getSenderKey(threadId);
+      let anonIndex = 0;
       for (const msg of msgList) {
         if (msg.sender_type === 'anonymous') {
           // Sender's own message — use cached plaintext (can't decrypt; encrypted with link's pub key)
-          msg.content = senderData?.sentMessage || '[Your message]';
+          msg.content = senderData?.sentMessages[anonIndex] || '[Your message]';
+          anonIndex++;
         } else if (msg.sender_type === 'owner' && senderData?.privateKeyJwk) {
           try {
             msg.content = await decrypt(msg.content, senderData.privateKeyJwk);

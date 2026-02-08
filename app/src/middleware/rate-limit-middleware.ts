@@ -75,6 +75,22 @@ export const publicRateLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter for anonymous reply endpoint
+ * Uses thread_id from URL params — limits per-thread reply rate.
+ * No IP used; possession of thread_id is the auth.
+ */
+export const anonymousReplyRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // 20 replies per 5 minutes per thread
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const tid = (req.params as { thread_id?: string })?.thread_id;
+    return tid ? `reply:${tid}` : 'reply:unknown';
+  },
+});
+
+/**
  * Rate limiter for public thread view (anonymous sender checking replies)
  * Uses thread_id from URL — limits per-thread polling (60/5min ≈ every 5 sec).
  * No IP used; possession of thread_id is the auth.

@@ -7,16 +7,17 @@
 import { Router } from 'express';
 import {
   sendMessage,
+  sendAnonymousReply,
   getLinkMetadata,
   getThreadPublic,
   healthCheck,
   readinessCheck,
 } from '../controllers/send-controller';
 import { validateBody, validateParams } from '../middleware/validation-middleware';
-import { sendMessageSchema } from '../validators/message-validators';
+import { sendMessageSchema, replyMessageSchema } from '../validators/message-validators';
 import { linkIdSchema } from '../validators/link-validators';
 import { threadIdSchema } from '../validators/thread-validators';
-import { publicRateLimiter, threadViewRateLimiter } from '../middleware/rate-limit-middleware';
+import { publicRateLimiter, anonymousReplyRateLimiter, threadViewRateLimiter } from '../middleware/rate-limit-middleware';
 
 const router = Router();
 
@@ -52,6 +53,19 @@ router.get(
   '/api/v1/link/:link_id/metadata',
   validateParams(linkIdSchema),
   getLinkMetadata
+);
+
+/**
+ * Anonymous sender follow-up reply
+ * POST /api/v1/thread/:thread_id/reply
+ * Possession-based: thread_id in URL is the secret.
+ */
+router.post(
+  '/api/v1/thread/:thread_id/reply',
+  anonymousReplyRateLimiter,
+  validateParams(threadIdSchema),
+  validateBody(replyMessageSchema),
+  sendAnonymousReply
 );
 
 /**

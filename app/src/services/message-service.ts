@@ -97,6 +97,41 @@ export class MessageService {
   }
 
   /**
+   * Send anonymous follow-up message to existing thread
+   */
+  async sendAnonymousReply(
+    threadId: string,
+    content: string
+  ): Promise<Message> {
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      throw new NotFoundError('Thread');
+    }
+
+    if (thread.burned) {
+      throw new ValidationError('Thread has been burned');
+    }
+
+    const link = await this.linkModel.findById(thread.link_id);
+    if (!link || link.burned) {
+      throw new NotFoundError('Thread');
+    }
+
+    const messageData: CreateMessageData = {
+      thread_id: threadId,
+      content,
+      sender_type: 'anonymous',
+    };
+
+    const message = await this.messageModel.create(messageData);
+
+    LoggerUtils.logMetric('message_sent', 1, 'count');
+    LoggerUtils.logMetric('anonymous_reply_sent', 1, 'count');
+
+    return message;
+  }
+
+  /**
    * Send owner reply to thread
    */
   async sendOwnerReply(
