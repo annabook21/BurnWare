@@ -20,7 +20,7 @@ import { generateKeyPair } from '../../utils/e2ee';
 import { saveLinkKey } from '../../utils/key-store';
 import type { Link } from '../../types';
 
-const POLL_INTERVAL_MS = 15000; // 15 seconds (lighter than threads — just link metadata)
+const POLL_INTERVAL_MS = 30000; // 30 seconds
 
 interface LinksPanelProps {
   onLinkSelect: (linkId: string, linkName: string) => void;

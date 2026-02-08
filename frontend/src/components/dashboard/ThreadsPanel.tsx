@@ -34,7 +34,7 @@ interface ThreadData {
   messages: Message[];
 }
 
-const POLL_INTERVAL_MS = 10000; // 10 seconds
+const POLL_INTERVAL_MS = 30000; // 30 seconds
 
 export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   linkId,
@@ -47,6 +47,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 }) => {
   const [threads, setThreads] = useState<ThreadData[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchOkRef = React.useRef(false); // tracks whether we've had at least one successful fetch
   const { playFireExtinguish, playYouvGotMail } = useAIMSounds();
   const initialLoadRef = React.useRef(true);
 
@@ -106,6 +107,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
       }
 
       setThreads(activeThreads);
+      fetchOkRef.current = true;
       if (initialLoadRef.current && activeThreads.length > 0) {
         playYouvGotMail();
         initialLoadRef.current = false;
@@ -114,6 +116,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     } catch (error) {
       if (!axios.isCancel(error)) {
         console.error('Failed to fetch threads:', error);
+        // Don't clear threads on error — keep showing the last known state
         setLoading(false);
       }
     }
@@ -140,9 +143,9 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     };
   }, [fetchThreads]);
 
-  // Close panel when no active threads — in effect, not render body
+  // Close panel only when a successful fetch confirms 0 active threads
   useEffect(() => {
-    if (!loading && threads.length === 0) onClose();
+    if (!loading && threads.length === 0 && fetchOkRef.current) onClose();
   }, [loading, threads.length, onClose]);
 
   const handleSendMessage = async (threadId: string, message: string) => {
