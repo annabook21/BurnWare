@@ -16,6 +16,7 @@ import { LoginWindow } from './components/auth/LoginWindow';
 import styled from 'styled-components';
 import { Toaster } from 'sonner';
 import { getAccessToken } from './config/cognito-config';
+import { useAIMSounds } from './hooks/useAIMSounds';
 
 const AppContainer = styled.div`
   width: 100vw;
@@ -78,6 +79,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({ resetErrorBoundary }) => (
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { playWelcome } = useAIMSounds();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -97,6 +99,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLoginSuccess = () => {
+    playWelcome();
     setIsAuthenticated(true);
   };
 

@@ -41,7 +41,8 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 }) => {
   const [threads, setThreads] = useState<ThreadData[]>([]);
   const [loading, setLoading] = useState(true);
-  const { playFireExtinguish } = useAIMSounds();
+  const { playFireExtinguish, playYouvGotMail } = useAIMSounds();
+  const initialLoadRef = React.useRef(true);
 
   const fetchThreads = async (signal?: AbortSignal) => {
     try {
@@ -73,7 +74,12 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
         })
       );
 
-      setThreads(threadDetails.filter((t) => !t.burned));
+      const activeThreads = threadDetails.filter((t) => !t.burned);
+      setThreads(activeThreads);
+      if (initialLoadRef.current && activeThreads.length > 0) {
+        playYouvGotMail();
+        initialLoadRef.current = false;
+      }
       setLoading(false);
     } catch (error) {
       if (!axios.isCancel(error)) {

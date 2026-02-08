@@ -17,7 +17,7 @@ export interface ObservabilityStackProps extends StackProps {
   alarmEmail: string;
   logRetentionDays?: number;
   /** ALB for health/5xx alarms (optional — alarms skipped if not provided) */
-  alb?: elbv2.IApplicationLoadBalancer;
+  alb?: elbv2.ApplicationLoadBalancer;
 }
 
 export class ObservabilityStack extends Stack {

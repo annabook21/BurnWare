@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
+import { useAIMSounds } from '../../hooks/useAIMSounds';
 import type { Link } from '../../types';
 
 interface LinksPanelProps {
@@ -28,6 +29,7 @@ const Container = styled.div`
 `;
 
 export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, onFocus }) => {
+  const { playFilesDone } = useAIMSounds();
   const [links, setLinks] = useState<Link[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -87,6 +89,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
       await fetchLinks();
       setShowCreateDialog(false);
+      playFilesDone();
 
       // Show QR code for new link
       const newLink = response.data.data;

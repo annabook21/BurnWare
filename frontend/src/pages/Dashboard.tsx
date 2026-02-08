@@ -92,7 +92,7 @@ export const Dashboard: React.FC = () => {
   );
   const [showStartMenu, setShowStartMenu] = useState(false);
   const [time, setTime] = useState(new Date());
-  const { setMuted } = useAIMSounds();
+  const { setMuted, playBuddyOut } = useAIMSounds();
 
   React.useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -109,8 +109,10 @@ export const Dashboard: React.FC = () => {
 
   const handleLogout = () => {
     if (window.confirm('Sign out of BurnWare?')) {
+      playBuddyOut();
       signOut();
-      window.location.reload();
+      // Small delay so the sound plays before reload
+      setTimeout(() => window.location.reload(), 500);
     }
   };
 
