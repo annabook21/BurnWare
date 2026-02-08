@@ -25,8 +25,9 @@ export const sendMessageSchema = Joi.object({
  * Schema for owner reply to thread
  */
 export const replyMessageSchema = Joi.object({
-  ciphertext: Joi.string().min(1).max(10000).required(),
-});
+  ciphertext: Joi.string().min(1).max(10000),
+  message: Joi.string().min(1).max(5000),
+}).or('ciphertext', 'message');
 
 /**
  * Schema for message query filters

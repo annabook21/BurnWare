@@ -96,9 +96,10 @@ export const replyToThread = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user!.sub;
     const { thread_id } = req.params as Record<string, string>;
-    const { ciphertext } = req.validated as { ciphertext: string };
+    const { ciphertext, message } = req.validated as { ciphertext?: string; message?: string };
+    const content = (ciphertext || message)!;
 
-    const result = await messageService.sendOwnerReply(thread_id, userId, ciphertext);
+    const result = await messageService.sendOwnerReply(thread_id, userId, content);
 
     ResponseUtils.success(res, result, 201);
   }

@@ -151,18 +151,21 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
       const thread = threads.find((t) => t.thread_id === threadId);
-      if (!thread?.sender_public_key) {
-        toast.error('Cannot encrypt reply — no sender key.');
-        return;
+      const token = await getAccessToken();
+      let body: Record<string, string>;
+
+      if (thread?.sender_public_key) {
+        // E2EE: encrypt reply with sender's public key
+        const { ciphertext } = await encrypt(message, thread.sender_public_key);
+        body = { ciphertext };
+      } else {
+        // Legacy plaintext reply (thread has no sender key)
+        body = { message };
       }
 
-      // E2EE: encrypt reply with sender's public key
-      const { ciphertext } = await encrypt(message, thread.sender_public_key);
-
-      const token = await getAccessToken();
       const res = await apiClient.post(
         endpoints.dashboard.threadReply(threadId),
-        { ciphertext },
+        body,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
