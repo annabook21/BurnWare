@@ -131,7 +131,7 @@ const getStatus = (link: Link): StatusType => {
   const now = new Date();
   const daysUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
   if (daysUntilExpiry < 0) return 'expired';
-  if (daysUntilExpiry < 7) return 'expiring';
+  if (daysUntilExpiry < 3) return 'expiring';
   return 'active';
 };
 

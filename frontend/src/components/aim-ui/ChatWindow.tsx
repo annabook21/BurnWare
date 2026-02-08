@@ -14,8 +14,9 @@ import type { Message } from '../../types';
 interface ChatWindowProps {
   threadId: string;
   linkName: string;
+  senderAnonymousId: string;
   messages: Message[];
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string) => void | Promise<void>;
   onBurn: () => void;
   onClose: () => void;
   initialX?: number;
@@ -154,6 +155,7 @@ const formatTime = (dateString: string): string => {
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   threadId: _threadId,
   linkName,
+  senderAnonymousId,
   messages,
   onSendMessage,
   onBurn,
@@ -164,6 +166,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onFocus,
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const { playFireIgnite } = useAIMSounds();
 
@@ -171,15 +174,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
-    if (inputValue.trim()) {
-      onSendMessage(inputValue);
+  const handleSend = async () => {
+    if (!inputValue.trim() || isSending) return;
+    setIsSending(true);
+    try {
+      await onSendMessage(inputValue);
       setInputValue('');
       playFireIgnite();
+    } finally {
+      setIsSending(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -215,7 +222,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div>
                   <Timestamp>{formatTime(msg.created_at)}</Timestamp>
                   <Sender isOwner={msg.sender_type === 'owner'}>
-                    {msg.sender_type === 'owner' ? 'You' : 'Anonymous'}:
+                    {msg.sender_type === 'owner' ? 'You' : senderAnonymousId}:
                   </Sender>
                 </div>
                 <MessageContent>{msg.content}</MessageContent>
@@ -229,13 +236,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <TextInput
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder="Type your reply here..."
             maxLength={5000}
           />
           <ButtonBar>
-            <SendButton onClick={handleSend} disabled={!inputValue.trim()}>
-              Send
+            <SendButton onClick={handleSend} disabled={!inputValue.trim() || isSending}>
+              {isSending ? 'Sending...' : 'Send'}
             </SendButton>
             <BurnButton onClick={handleBurnClick}>🔥 Burn</BurnButton>
             <CloseButton onClick={onClose}>Close</CloseButton>

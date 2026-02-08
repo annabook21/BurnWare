@@ -5,11 +5,18 @@
  */
 
 import { Router } from 'express';
-import { sendMessage, getLinkMetadata, healthCheck, readinessCheck } from '../controllers/send-controller';
+import {
+  sendMessage,
+  getLinkMetadata,
+  getThreadPublic,
+  healthCheck,
+  readinessCheck,
+} from '../controllers/send-controller';
 import { validateBody, validateParams } from '../middleware/validation-middleware';
 import { sendMessageSchema } from '../validators/message-validators';
 import { linkIdSchema } from '../validators/link-validators';
-import { publicRateLimiter } from '../middleware/rate-limit-middleware';
+import { threadIdSchema } from '../validators/thread-validators';
+import { publicRateLimiter, threadViewRateLimiter } from '../middleware/rate-limit-middleware';
 
 const router = Router();
 
@@ -45,6 +52,18 @@ router.get(
   '/api/v1/link/:link_id/metadata',
   validateParams(linkIdSchema),
   getLinkMetadata
+);
+
+/**
+ * Get thread (for anonymous sender to view replies)
+ * GET /api/v1/thread/:thread_id
+ * Possession-based: thread_id in URL is the secret (UUID, unguessable).
+ */
+router.get(
+  '/api/v1/thread/:thread_id',
+  threadViewRateLimiter,
+  validateParams(threadIdSchema),
+  getThreadPublic
 );
 
 export default router;

@@ -68,6 +68,7 @@ export const getThreadWithMessages = asyncHandler(
       ResponseUtils.success(res, {
         thread_id: result.thread.thread_id,
         link_id: result.thread.link_id,
+        sender_anonymous_id: result.thread.sender_anonymous_id,
         burned: result.thread.burned,
         created_at: result.thread.created_at,
         messages: result.messages,

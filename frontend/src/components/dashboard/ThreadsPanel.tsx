@@ -3,7 +3,7 @@
  * Manages thread windows for a link
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChatWindow } from '../aim-ui/ChatWindow';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -26,9 +26,12 @@ interface ThreadsPanelProps {
 interface ThreadData {
   thread_id: string;
   link_id: string;
+  sender_anonymous_id: string;
   burned: boolean;
   messages: Message[];
 }
+
+const POLL_INTERVAL_MS = 10000; // 10 seconds
 
 export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   linkId,
@@ -44,7 +47,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   const { playFireExtinguish, playYouvGotMail } = useAIMSounds();
   const initialLoadRef = React.useRef(true);
 
-  const fetchThreads = async (signal?: AbortSignal) => {
+  const fetchThreads = useCallback(async (signal?: AbortSignal) => {
     try {
       const token = await getAccessToken();
       const headers = { Authorization: `Bearer ${token}` };
@@ -57,8 +60,8 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
       const threadList: { thread_id: string }[] = listResponse.data.data || [];
 
-      // Step 2: Fetch messages for each thread
-      const threadDetails = await Promise.all(
+      // Step 2: Fetch messages for each thread (partial failure tolerant)
+      const results = await Promise.allSettled(
         threadList.map(async (t) => {
           const detailResponse = await apiClient.get(
             endpoints.dashboard.thread(t.thread_id),
@@ -68,11 +71,16 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
           return {
             thread_id: data.thread_id,
             link_id: data.link_id,
+            sender_anonymous_id: data.sender_anonymous_id || data.thread_id?.slice(0, 8) || 'anon',
             burned: data.burned,
             messages: data.messages || [],
           } as ThreadData;
         })
       );
+
+      const threadDetails = results
+        .filter((r): r is PromiseFulfilledResult<ThreadData> => r.status === 'fulfilled')
+        .map((r) => r.value);
 
       const activeThreads = threadDetails.filter((t) => !t.burned);
       setThreads(activeThreads);
@@ -87,13 +95,33 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
         setLoading(false);
       }
     }
-  };
+  }, [linkId, playYouvGotMail]);
 
+  // Recursive setTimeout polling: avoids overlapping requests unlike setInterval
   useEffect(() => {
     const controller = new AbortController();
-    fetchThreads(controller.signal);
-    return () => controller.abort();
-  }, [linkId]);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let stopped = false;
+
+    const poll = async () => {
+      await fetchThreads(controller.signal);
+      if (!stopped) {
+        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    poll(); // initial fetch
+    return () => {
+      stopped = true;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [fetchThreads]);
+
+  // Close panel when no active threads — in effect, not render body
+  useEffect(() => {
+    if (!loading && threads.length === 0) onClose();
+  }, [loading, threads.length, onClose]);
 
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
@@ -128,12 +156,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     }
   };
 
-  if (loading) {
-    return null;
-  }
-
-  if (threads.length === 0) {
-    onClose();
+  if (loading || threads.length === 0) {
     return null;
   }
 
@@ -144,6 +167,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
           key={thread.thread_id}
           threadId={thread.thread_id}
           linkName={linkName}
+          senderAnonymousId={thread.sender_anonymous_id}
           messages={thread.messages}
           onSendMessage={(msg) => handleSendMessage(thread.thread_id, msg)}
           onBurn={() => handleBurn(thread.thread_id)}

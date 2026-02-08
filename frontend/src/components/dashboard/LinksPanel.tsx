@@ -4,7 +4,7 @@
  * File size: ~245 lines
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { BuddyList } from '../aim-ui/BuddyList';
 import { AwayMessageDialog } from '../aim-ui/AwayMessageDialog';
@@ -17,6 +17,8 @@ import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import type { Link } from '../../types';
+
+const POLL_INTERVAL_MS = 15000; // 15 seconds (lighter than threads — just link metadata)
 
 interface LinksPanelProps {
   onLinkSelect: (linkId: string, linkName: string) => void;
@@ -37,7 +39,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
   const [showDescDialog, setShowDescDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
 
-  const fetchLinks = async (signal?: AbortSignal) => {
+  const fetchLinks = useCallback(async (signal?: AbortSignal) => {
     try {
       const token = await getAccessToken();
       const response = await apiClient.get(endpoints.dashboard.links(), {
@@ -53,22 +55,40 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
         setLoading(false);
       }
     }
-  };
+  }, []);
 
+  // Recursive setTimeout polling: avoids overlapping requests
   useEffect(() => {
     const controller = new AbortController();
-    fetchLinks(controller.signal);
-    return () => controller.abort();
-  }, []);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let stopped = false;
+
+    const poll = async () => {
+      await fetchLinks(controller.signal);
+      if (!stopped) {
+        timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [fetchLinks]);
 
   const handleLinkClick = (linkId: string) => {
     const link = links.find((l) => l.link_id === linkId);
-    if (link && link.message_count > 0) {
+    if (!link) return;
+
+    // Always make QR/share available
+    setSelectedLink(link);
+    setShowQRDialog(true);
+
+    // Also open threads panel if there are messages
+    if (link.message_count > 0) {
       onLinkSelect(linkId, link.display_name);
-    } else {
-      // Show link details/QR code if no messages
-      setSelectedLink(link || null);
-      setShowQRDialog(true);
     }
   };
 

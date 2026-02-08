@@ -12,6 +12,7 @@ import { GlobalStyles } from './theme/global-styles';
 import { aimTheme } from './theme/aim-theme';
 import { Dashboard } from './pages/Dashboard';
 import { SendPage } from './pages/SendPage';
+import { ThreadPage } from './pages/ThreadPage';
 import { LoginWindow } from './components/auth/LoginWindow';
 import styled from 'styled-components';
 import { Toaster } from 'sonner';
@@ -133,6 +134,9 @@ const App: React.FC = () => {
           <Routes>
             {/* Public route - anonymous message sending */}
             <Route path="/l/:linkId" element={<SendPage />} />
+
+            {/* Public route - anonymous sender checks replies (possession-based: URL = secret) */}
+            <Route path="/thread/:threadId" element={<ThreadPage />} />
 
             {/* Protected dashboard route */}
             <Route

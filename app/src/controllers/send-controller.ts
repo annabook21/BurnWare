@@ -1,7 +1,7 @@
 /**
  * Send Controller
- * Handles anonymous message sending
- * File size: ~110 lines
+ * Handles anonymous message sending and public thread view
+ * File size: ~140 lines
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -10,8 +10,12 @@ import { ResponseUtils } from '../utils/response-utils';
 import { asyncHandler } from '../middleware/error-middleware';
 import { createSubsegment } from '../config/xray';
 import { getDb } from '../config/database';
+import { ThreadModel } from '../models/thread-model';
+import { MessageModel } from '../models/message-model';
 
 const messageService = new MessageService();
+const threadModel = new ThreadModel();
+const messageModel = new MessageModel();
 
 /**
  * Send anonymous message
@@ -48,6 +52,39 @@ export const sendMessage = asyncHandler(
       subsegment?.close();
       throw error;
     }
+  }
+);
+
+/**
+ * Get thread for anonymous sender (possession-based: thread_id in URL is the secret)
+ * GET /api/v1/thread/:thread_id
+ * Returns 404 for non-existent or burned — same response to avoid enumeration.
+ * Pattern: UUID as unguessable token (RFC 9562, OneTimeSecret/Privnote style).
+ */
+export const getThreadPublic = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const { thread_id } = req.params as Record<string, string>;
+
+    const thread = await threadModel.findById(thread_id);
+    if (!thread || thread.burned) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Thread not found or no longer available.' },
+      });
+      return;
+    }
+
+    const messages = await messageModel.findByThreadId(thread_id, 100, 0);
+    ResponseUtils.success(res, {
+      thread_id: thread.thread_id,
+      created_at: thread.created_at,
+      messages: messages.map((m) => ({
+        message_id: m.message_id,
+        content: m.content,
+        sender_type: m.sender_type,
+        created_at: m.created_at,
+      })),
+    });
   }
 );
 

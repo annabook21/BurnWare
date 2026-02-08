@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { ThreadView } from './ThreadView';
 import { aimTheme } from '../../theme/aim-theme';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import axios from 'axios';
@@ -140,11 +141,28 @@ function useCenteredPosition(width: number, height: number) {
   return pos;
 }
 
+const ReplyLink = styled.a`
+  color: ${aimTheme.colors.blue};
+  text-decoration: underline;
+  word-break: break-all;
+  font-size: ${aimTheme.fonts.size.small};
+  &:hover { color: ${aimTheme.colors.blueGradientEnd}; }
+`;
+
+const SuccessSection = styled.div`
+  padding: ${aimTheme.spacing.md};
+  background: #E8F8E8;
+  border: 1px solid #28A745;
+  margin: ${aimTheme.spacing.md};
+  font-size: ${aimTheme.fonts.size.small};
+`;
+
 export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) => {
   const [message, setMessage] = useState('');
   const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sentThreadId, setSentThreadId] = useState<string | null>(null);
   const { playMatchStrike } = useAIMSounds();
   const center = useCenteredPosition(WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -174,14 +192,19 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
 
     setSending(true);
     try {
-      await apiClient.post(endpoints.public.send(), {
+      const res = await apiClient.post(endpoints.public.send(), {
         recipient_link_id: linkId,
         message: message.trim(),
       });
+      const data = res.data?.data as { thread_id?: string } | undefined;
+      const threadId = data?.thread_id;
 
       playMatchStrike();
-      toast.success('Message sent! Your message is anonymous and the recipient can view it in their dashboard.');
+      toast.success('Message sent!');
       setMessage('');
+      if (threadId) {
+        setSentThreadId(threadId);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('Failed to send message. Please try again.');
@@ -190,9 +213,11 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     }
   };
 
+  const threadUrl = sentThreadId ? `${window.location.origin}/thread/${sentThreadId}` : '';
+
   if (loading) {
     return (
-      <WindowFrame title="Loading..." width={500} height={400} initialX={center.x} initialY={center.y}>
+      <WindowFrame title="Loading..." width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
         <Container>
           <div style={{ padding: aimTheme.spacing.md }}>Loading...</div>
         </Container>
@@ -202,7 +227,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
 
   if (!linkInfo) {
     return (
-      <WindowFrame title="Error" width={400} height={200} initialX={center.x} initialY={center.y}>
+      <WindowFrame title="Error" width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
         <Container>
           <div style={{ padding: aimTheme.spacing.md }}>Link not found or expired.</div>
         </Container>
@@ -221,26 +246,41 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
           {linkInfo.description && <Description>{linkInfo.description}</Description>}
         </InfoSection>
 
-        <MessageSection>
-          <Label>Your Anonymous Message:</Label>
-          <TextArea
-            value={message}
-            onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
-            placeholder="Type your anonymous message here..."
-            maxLength={MAX_LENGTH}
-          />
-          <CharCount>{MAX_LENGTH - message.length} characters remaining</CharCount>
+        {sentThreadId ? (
+          <MessageSection>
+            <ThreadView threadId={sentThreadId} compact />
+            <SuccessSection>
+              Bookmark to check back later:&nbsp;
+              <ReplyLink href={threadUrl} target="_blank" rel="noopener noreferrer">
+                {threadUrl}
+              </ReplyLink>
+            </SuccessSection>
+            <ButtonBar>
+              <SendButton onClick={() => setSentThreadId(null)}>📤 Send another message</SendButton>
+            </ButtonBar>
+          </MessageSection>
+        ) : (
+          <MessageSection>
+            <Label>Your Anonymous Message:</Label>
+            <TextArea
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, MAX_LENGTH))}
+              placeholder="Type your anonymous message here..."
+              maxLength={MAX_LENGTH}
+            />
+            <CharCount>{MAX_LENGTH - message.length} characters remaining</CharCount>
 
-          <PrivacyNote>
-            🔒 Your message is completely anonymous. The recipient can burn the thread at any time.
-          </PrivacyNote>
+            <PrivacyNote>
+              🔒 Your message is completely anonymous. The recipient can burn the thread at any time.
+            </PrivacyNote>
 
-          <ButtonBar>
-            <SendButton onClick={handleSend} disabled={!message.trim() || sending}>
-              {sending ? 'Sending...' : '📤 Send Message'}
-            </SendButton>
-          </ButtonBar>
-        </MessageSection>
+            <ButtonBar>
+              <SendButton onClick={handleSend} disabled={!message.trim() || sending}>
+                {sending ? 'Sending...' : '📤 Send Message'}
+              </SendButton>
+            </ButtonBar>
+          </MessageSection>
+        )}
       </Container>
     </WindowFrame>
   );
