@@ -15,8 +15,11 @@ import { LoggerUtils } from '../utils/logger-utils';
 
 export interface SendMessageInput {
   recipient_link_id: string;
-  ciphertext: string;
-  sender_public_key: string;
+  // E2EE (new links with public_key)
+  ciphertext?: string;
+  sender_public_key?: string;
+  // Legacy plaintext (links without public_key)
+  message?: string;
 }
 
 export class MessageService {
@@ -39,7 +42,11 @@ export class MessageService {
     thread_id: string;
     created_at: Date;
   }> {
-    const { recipient_link_id, ciphertext, sender_public_key } = input;
+    const { recipient_link_id, ciphertext, sender_public_key, message } = input;
+    const content = ciphertext || message;
+    if (!content) {
+      throw new ValidationError('Message content is required');
+    }
 
     // Validate link exists and is active
     const link = await this.linkModel.findById(recipient_link_id);
@@ -57,7 +64,7 @@ export class MessageService {
       throw new ValidationError('Link is no longer active');
     }
 
-    // Create new thread for each anonymous message (with sender's E2EE public key)
+    // Create new thread for each anonymous message (with sender's E2EE public key if present)
     const thread = await this.threadService.createThread(recipient_link_id, sender_public_key);
 
     // Check if thread is burned
@@ -65,10 +72,10 @@ export class MessageService {
       throw new ValidationError('Thread has been burned by the recipient');
     }
 
-    // Create message (content is ciphertext — server never sees plaintext)
+    // Create message (content is ciphertext for E2EE links, plaintext for legacy)
     const messageData: CreateMessageData = {
       thread_id: thread.thread_id,
-      content: ciphertext,
+      content,
       sender_type: 'anonymous',
     };
 

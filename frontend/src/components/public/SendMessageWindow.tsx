@@ -190,33 +190,42 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   }, [linkId]);
 
   const handleSend = async () => {
-    if (!message.trim() || sending || !linkInfo?.public_key) return;
+    if (!message.trim() || sending) return;
 
     setSending(true);
     try {
-      // E2EE: encrypt message with link's public key
-      const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
-        await encrypt(message.trim(), linkInfo.public_key);
+      let body: Record<string, string>;
 
-      const res = await apiClient.post(endpoints.public.send(), {
-        recipient_link_id: linkId,
-        ciphertext,
-        sender_public_key: ephemeralPublicKeyBase64,
-      });
-      const data = res.data?.data as { thread_id?: string } | undefined;
-      const threadId = data?.thread_id;
-
-      // Store ephemeral private key so sender can decrypt owner replies later
-      if (threadId) {
-        saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessage: message.trim() });
+      if (linkInfo?.public_key) {
+        // E2EE: encrypt message with link's public key
+        const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
+          await encrypt(message.trim(), linkInfo.public_key);
+        body = {
+          recipient_link_id: linkId,
+          ciphertext,
+          sender_public_key: ephemeralPublicKeyBase64,
+        };
+        // Store ephemeral private key so sender can decrypt owner replies later
+        const res = await apiClient.post(endpoints.public.send(), body);
+        const data = res.data?.data as { thread_id?: string } | undefined;
+        const threadId = data?.thread_id;
+        if (threadId) {
+          saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessage: message.trim() });
+          setSentThreadId(threadId);
+        }
+      } else {
+        // Legacy plaintext (link has no public_key)
+        body = { recipient_link_id: linkId, message: message.trim() };
+        const res = await apiClient.post(endpoints.public.send(), body);
+        const data = res.data?.data as { thread_id?: string } | undefined;
+        if (data?.thread_id) {
+          setSentThreadId(data.thread_id);
+        }
       }
 
       playMatchStrike();
       toast.success('Message sent!');
       setMessage('');
-      if (threadId) {
-        setSentThreadId(threadId);
-      }
     } catch (error) {
       console.error('Failed to send message:', error);
       toast.error('Failed to send message. Please try again.');
@@ -283,11 +292,13 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             <CharCount>{MAX_LENGTH - message.length} characters remaining</CharCount>
 
           <PrivacyNote>
-            🔒 End-to-end encrypted. The server never sees your message — only the recipient can decrypt it. We don&apos;t store who you are (no account, no IP in our app).
+            {linkInfo?.public_key
+              ? '🔒 End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
+              : '🔒 Your identity is anonymous — no account or IP stored.'}
           </PrivacyNote>
 
             <ButtonBar>
-              <SendButton onClick={handleSend} disabled={!message.trim() || sending || !linkInfo?.public_key}>
+              <SendButton onClick={handleSend} disabled={!message.trim() || sending}>
                 {sending ? 'Sending...' : '📤 Send Message'}
               </SendButton>
             </ButtonBar>

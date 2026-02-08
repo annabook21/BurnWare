@@ -26,17 +26,18 @@ export const sendMessage = asyncHandler(
     const subsegment = createSubsegment('send_message');
 
     try {
-      const { recipient_link_id, ciphertext, sender_public_key } = req.validated as {
+      const { recipient_link_id, ciphertext, sender_public_key, message } = req.validated as {
         recipient_link_id: string;
-        ciphertext: string;
-        sender_public_key: string;
+        ciphertext?: string;
+        sender_public_key?: string;
+        message?: string;
       };
 
-      // Send E2EE message (server stores ciphertext, never sees plaintext)
       const result = await messageService.sendAnonymousMessage({
         recipient_link_id,
         ciphertext,
         sender_public_key,
+        message,
       });
 
       subsegment?.close();
