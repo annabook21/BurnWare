@@ -14,4 +14,12 @@ else
   echo "PM2 not found at $PM2, skipping stop (first deployment)"
 fi
 
+# Clean deployment directory (preserve .env written by user data)
+# This prevents "file already exists" errors when user data already
+# extracted the app before CodeDeploy runs its Install step.
+if [ -d /opt/burnware ]; then
+  echo "Cleaning /opt/burnware (preserving .env)"
+  find /opt/burnware -mindepth 1 -not -name '.env' -delete 2>/dev/null || true
+fi
+
 echo "Application stopped"
