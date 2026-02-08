@@ -6,10 +6,12 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ThreadService } from '../services/thread-service';
+import { LinkService } from '../services/link-service';
 import { asyncHandler } from '../middleware/error-middleware';
 import { createSubsegment } from '../config/xray';
 
 const threadService = new ThreadService();
+const linkService = new LinkService();
 
 /**
  * Burn thread
@@ -21,7 +23,7 @@ export const burnThread = asyncHandler(
 
     try {
       const userId = req.user!.sub;
-      const { thread_id } = req.params;
+      const { thread_id } = req.params as Record<string, string>;
 
       await threadService.burnThread(thread_id, userId);
 
@@ -43,12 +45,20 @@ export const burnThread = asyncHandler(
  */
 export const burnLink = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const userId = req.user!.sub;
-    const { link_id } = req.params;
+    const subsegment = createSubsegment('burn_link');
 
-    // This would require additional implementation in LinkService
-    // For now, just return success
+    try {
+      const userId = req.user!.sub;
+      const { link_id } = req.params as Record<string, string>;
 
-    res.status(204).send();
+      await linkService.burnLink(link_id, userId);
+
+      subsegment?.close();
+      res.status(204).send();
+    } catch (error) {
+      subsegment?.addError(error as Error);
+      subsegment?.close();
+      throw error;
+    }
   }
 );

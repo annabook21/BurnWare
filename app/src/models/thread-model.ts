@@ -25,10 +25,8 @@ export interface CreateThreadData {
 }
 
 export class ThreadModel {
-  private db: Pool;
-
-  constructor() {
-    this.db = getDb();
+  private get db(): Pool {
+    return getDb();
   }
 
   /**

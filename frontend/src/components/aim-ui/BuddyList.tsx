@@ -4,7 +4,7 @@
  * File size: ~240 lines
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
 import { BuddyListItem } from './BuddyListItem';
@@ -60,18 +60,22 @@ const HeaderSubtitle = styled.div`
   color: #666;
 `;
 
-const GroupHeader = styled.div`
+const GroupHeader = styled.button`
+  width: 100%;
   background: ${aimTheme.colors.gray};
   border: 1px solid ${aimTheme.colors.darkGray};
   border-left: none;
   border-right: none;
   padding: 2px 8px;
+  font-family: ${aimTheme.fonts.primary};
+  font-size: ${aimTheme.fonts.size.normal};
   font-weight: ${aimTheme.fonts.weight.bold};
   cursor: pointer;
   user-select: none;
   display: flex;
   align-items: center;
   gap: 4px;
+  text-align: left;
 
   &:hover {
     background: #D0D0D0;
@@ -143,6 +147,10 @@ export const BuddyList: React.FC<BuddyListProps> = ({
 }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
 
+  const handleLinkClick = useCallback((linkId: string) => {
+    onLinkClick(linkId);
+  }, [onLinkClick]);
+
   const activeLinks = links.filter((l) => getStatus(l) === 'active');
   const expiringLinks = links.filter((l) => getStatus(l) === 'expiring');
   const expiredLinks = links.filter((l) => getStatus(l) === 'expired');
@@ -177,7 +185,11 @@ export const BuddyList: React.FC<BuddyListProps> = ({
         </Header>
 
         <ScrollArea>
-          <GroupHeader onClick={() => toggleGroup('active')}>
+          <GroupHeader
+            onClick={() => toggleGroup('active')}
+            aria-expanded={expandedGroups.has('active')}
+            aria-controls="group-active"
+          >
             <span>{expandedGroups.has('active') ? '▼' : '▶'}</span>
             <span>Active Links ({activeLinks.length})</span>
           </GroupHeader>
@@ -188,13 +200,17 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 name={link.display_name}
                 status="active"
                 messageCount={link.message_count}
-                onClick={() => onLinkClick(link.link_id)}
+                onClick={() => handleLinkClick(link.link_id)}
               />
             ))}
 
           {expiringLinks.length > 0 && (
             <>
-              <GroupHeader onClick={() => toggleGroup('expiring')}>
+              <GroupHeader
+                onClick={() => toggleGroup('expiring')}
+                aria-expanded={expandedGroups.has('expiring')}
+                aria-controls="group-expiring"
+              >
                 <span>{expandedGroups.has('expiring') ? '▼' : '▶'}</span>
                 <span>Expiring Soon ({expiringLinks.length})</span>
               </GroupHeader>
@@ -205,13 +221,17 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                     name={link.display_name}
                     status="expiring"
                     messageCount={link.message_count}
-                    onClick={() => onLinkClick(link.link_id)}
+                    onClick={() => handleLinkClick(link.link_id)}
                   />
                 ))}
             </>
           )}
 
-          <GroupHeader onClick={() => toggleGroup('expired')}>
+          <GroupHeader
+            onClick={() => toggleGroup('expired')}
+            aria-expanded={expandedGroups.has('expired')}
+            aria-controls="group-expired"
+          >
             <span>{expandedGroups.has('expired') ? '▼' : '▶'}</span>
             <span>Expired ({expiredLinks.length})</span>
           </GroupHeader>
@@ -222,7 +242,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 name={link.display_name}
                 status="expired"
                 messageCount={0}
-                onClick={() => onLinkClick(link.link_id)}
+                onClick={() => handleLinkClick(link.link_id)}
               />
             ))}
         </ScrollArea>

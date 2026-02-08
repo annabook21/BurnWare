@@ -6,7 +6,6 @@
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import { AWSXRay } from './config/xray';
 import { requestIdMiddleware, requestLogger } from './middleware/logging-middleware';
 import { errorHandler, notFoundHandler } from './middleware/error-middleware';
 import { registerRoutes } from './routes';
@@ -17,12 +16,6 @@ import { logger } from './config/logger';
  */
 export function createServer(): Express {
   const app = express();
-
-  // X-Ray tracing middleware (first)
-  // https://docs.aws.amazon.com/xray/latest/devguide/xray-services-ec2.html
-  if (process.env.ENABLE_XRAY !== 'false') {
-    app.use(AWSXRay.express.openSegment('BurnWare'));
-  }
 
   // Security headers with Helmet
   app.use(
@@ -51,7 +44,16 @@ export function createServer(): Express {
   // CORS configuration
   app.use(
     cors({
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+      origin: (() => {
+        const origins = process.env.ALLOWED_ORIGINS?.split(',').filter(Boolean);
+        if (!origins?.length) {
+          if (process.env.NODE_ENV === 'production') {
+            throw new Error('ALLOWED_ORIGINS environment variable is required in production');
+          }
+          return true; // Allow all origins in development
+        }
+        return origins;
+      })(),
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'DELETE'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -75,11 +77,6 @@ export function createServer(): Express {
   // Error handling (must be last)
   app.use(notFoundHandler);
   app.use(errorHandler);
-
-  // X-Ray tracing middleware (last)
-  if (process.env.ENABLE_XRAY !== 'false') {
-    app.use(AWSXRay.express.closeSegment());
-  }
 
   return app;
 }

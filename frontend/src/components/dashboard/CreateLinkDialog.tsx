@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
 import { aimTheme } from '../../theme/aim-theme';
 
@@ -109,7 +110,7 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
 
   const handleCreate = () => {
     if (!displayName.trim()) {
-      alert('Please enter a display name');
+      toast.error('Please enter a display name');
       return;
     }
 

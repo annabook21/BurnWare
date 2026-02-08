@@ -5,15 +5,15 @@
  */
 
 import QRCode from 'qrcode';
-import { S3 } from 'aws-sdk';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { logger } from '../config/logger';
 
 export class QRCodeService {
-  private s3: S3;
+  private s3: S3Client;
   private bucketName: string;
 
   constructor() {
-    this.s3 = new S3({ region: process.env.AWS_REGION || 'us-east-1' });
+    this.s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
     this.bucketName = process.env.QR_CODE_BUCKET || 'burnware-qr-codes';
   }
 
@@ -32,15 +32,15 @@ export class QRCodeService {
 
       // Upload to S3
       const key = `qr-codes/${linkId}.png`;
-      await this.s3
-        .putObject({
+      await this.s3.send(
+        new PutObjectCommand({
           Bucket: this.bucketName,
           Key: key,
           Body: qrBuffer,
           ContentType: 'image/png',
           CacheControl: 'public, max-age=31536000', // 1 year
         })
-        .promise();
+      );
 
       // Return S3 URL
       const s3Url = `https://${this.bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
@@ -76,12 +76,12 @@ export class QRCodeService {
   async delete(linkId: string): Promise<void> {
     try {
       const key = `qr-codes/${linkId}.png`;
-      await this.s3
-        .deleteObject({
+      await this.s3.send(
+        new DeleteObjectCommand({
           Bucket: this.bucketName,
           Key: key,
         })
-        .promise();
+      );
 
       logger.info('QR code deleted', { link_id: linkId });
     } catch (error) {

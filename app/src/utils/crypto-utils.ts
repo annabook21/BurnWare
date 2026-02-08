@@ -18,7 +18,7 @@ export class CryptoUtils {
    * Generate HMAC for thread verification
    */
   static generateHMAC(data: string, secret: string): string {
-    return crypto.createHmac('sha256', secret).update(data).digest('hex').substring(0, 16);
+    return crypto.createHmac('sha256', secret).update(data).digest('hex');
   }
 
   /**

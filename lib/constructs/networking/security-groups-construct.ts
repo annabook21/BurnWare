@@ -5,6 +5,7 @@
  */
 
 import { Construct } from 'constructs';
+import { Stack } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { NamingUtils } from '../../utils/naming';
 
@@ -33,17 +34,15 @@ export class SecurityGroupsConstruct extends Construct {
       allowAllOutbound: false,
     });
 
-    // Inbound: listener ports (HTTPS and HTTP for dev redirect)
-    // https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-update-security-groups.html
+    // Inbound: CloudFront VPC Origins only (ALB is internal)
+    // https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html
+    const cfPrefixList = ec2.PrefixList.fromLookup(this, 'CloudFrontOriginFacing', {
+      prefixListName: 'com.amazonaws.global.cloudfront.origin-facing',
+    });
     this.albSecurityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(443),
-      'Allow HTTPS from internet'
-    );
-    this.albSecurityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
+      ec2.Peer.prefixList(cfPrefixList.prefixListId),
       ec2.Port.tcp(80),
-      'Allow HTTP from internet (dev or redirect to HTTPS)'
+      'Allow HTTP from CloudFront VPC Origins'
     );
 
     // EC2 Security Group
@@ -105,6 +104,18 @@ export class SecurityGroupsConstruct extends Construct {
       this.endpointSecurityGroup,
       ec2.Port.tcp(443),
       'Allow HTTPS to VPC endpoints'
+    );
+
+    // EC2 → S3: Allow HTTPS traffic via S3 gateway endpoint
+    // Gateway endpoints route traffic to S3 public IPs via route table prefix list,
+    // NOT through the VPC endpoint security group — needs a separate egress rule.
+    const s3PrefixList = ec2.PrefixList.fromLookup(this, 'S3PrefixList', {
+      prefixListName: `com.amazonaws.${Stack.of(this).region}.s3`,
+    });
+    this.ec2SecurityGroup.addEgressRule(
+      ec2.Peer.prefixList(s3PrefixList.prefixListId),
+      ec2.Port.tcp(443),
+      'Allow HTTPS to S3 via gateway endpoint'
     );
 
     // RDS ← EC2: Allow PostgreSQL from EC2 only

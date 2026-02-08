@@ -119,13 +119,7 @@ export const Dashboard: React.FC = () => {
       {(_windowManager) => (
         <Desktop>
           <LinksPanel
-            onLinkSelect={(linkId) => {
-              const links: { link_id: string; display_name: string }[] = []; // Would come from state
-              const link = links.find((l) => l.link_id === linkId);
-              if (link) {
-                handleLinkSelect(linkId, (link as { display_name: string }).display_name);
-              }
-            }}
+            onLinkSelect={handleLinkSelect}
             zIndex={100}
           />
 

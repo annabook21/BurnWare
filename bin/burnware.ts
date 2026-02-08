@@ -68,6 +68,8 @@ const appStack = new AppStack(app, `BurnWare-App-${environmentName}`, {
   albSecurityGroup: networkStack.albSecurityGroup,
   ec2SecurityGroup: networkStack.ec2SecurityGroup,
   userPoolArn: authStack.userPoolArn,
+  cognitoUserPoolId: authStack.userPool,
+  cognitoClientId: authStack.userPoolClient,
   environment: environmentName,
   domainName: config.domainName,
   certificateArn: config.certificateArn,
@@ -76,9 +78,9 @@ const appStack = new AppStack(app, `BurnWare-App-${environmentName}`, {
   asgDesiredCapacity: config.asgDesiredCapacity,
   dbSecretId: dataStack.dbSecretArn,
   dbEndpoint: dataStack.dbEndpoint,
-  dbPort: dataStack.dbPort as unknown as string,
+  dbPort: dataStack.dbPort,
   deploymentBucket: dataStack.deploymentBucket,
-  deployBackendArtifact: app.node.tryGetContext('deployBackend') === true,
+  deployBackendArtifact: app.node.tryGetContext('deployBackend') !== 'false',
   description: 'ALB, Auto Scaling Group, CodeDeploy',
 });
 appStack.addDependency(networkStack);
@@ -94,14 +96,15 @@ const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentNam
   webAclArn: wafStack.webAclArn,
   cognitoUserPoolId: authStack.userPool,
   cognitoClientId: authStack.userPoolClient,
-  apiBaseUrl: `http://${appStack.albDnsName}`,
+  apiBaseUrl: '', // Same-origin: CloudFront proxies /api/* to ALB, avoids mixed content
+  alb: appStack.alb,
   description: 'CloudFront distribution and S3 bucket for SPA',
 });
 frontendStack.addDependency(wafStack);
 frontendStack.addDependency(authStack);
 frontendStack.addDependency(appStack);
 
-// Observability Stack - simplified for initial deployment
+// Observability Stack
 const observabilityStack = new ObservabilityStack(
   app,
   `BurnWare-Observability-${environmentName}`,
@@ -110,9 +113,11 @@ const observabilityStack = new ObservabilityStack(
     environment: environmentName,
     alarmEmail: config.alarmEmail,
     logRetentionDays: config.logRetentionDays,
-    description: 'CloudWatch logs and SNS notifications',
+    alb: appStack.alb,
+    description: 'CloudWatch logs, SNS notifications, and CloudWatch alarms',
   }
 );
+observabilityStack.addDependency(appStack);
 
 // Add stack tags
 cdk.Tags.of(app).add('Project', 'BurnWare');

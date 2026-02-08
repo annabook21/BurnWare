@@ -7,6 +7,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
+import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
 import { aimTheme } from '../../theme/aim-theme';
 import { awsConfig } from '../../config/aws-config';
@@ -81,12 +82,13 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
   qrCodeUrl: _qrCodeUrl,
   onClose,
 }) => {
-  const baseUrl = awsConfig.api.baseUrl.replace('/api', '');
+  const baseUrl =
+    awsConfig.api.baseUrl.replace('/api', '') || window.location.origin;
   const fullUrl = `${baseUrl}/l/${linkId}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullUrl);
-    alert('Link copied to clipboard!');
+    toast.success('Link copied to clipboard!');
   };
 
   const handleDownloadQR = () => {

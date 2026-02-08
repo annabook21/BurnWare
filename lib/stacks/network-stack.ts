@@ -85,7 +85,7 @@ export class NetworkStack extends Stack {
     });
     this.vpc.addFlowLog('FlowLog', {
       destination: ec2.FlowLogDestination.toCloudWatchLogs(flowLogGroup),
-      trafficType: ec2.FlowLogTrafficType.REJECT,
+      trafficType: ec2.FlowLogTrafficType.ALL,
     });
 
     // Create VPC endpoints

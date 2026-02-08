@@ -23,6 +23,9 @@ export class VpcEndpointsConstruct extends Construct {
   public readonly secretsManagerEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly monitoringEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly xrayEndpoint: ec2.IInterfaceVpcEndpoint;
+  public readonly codeDeployEndpoint: ec2.IInterfaceVpcEndpoint;
+  public readonly codeDeployCommandsEndpoint: ec2.IInterfaceVpcEndpoint;
+  public readonly cognitoIdpEndpoint: ec2.IInterfaceVpcEndpoint;
 
   constructor(scope: Construct, id: string, props: VpcEndpointsConstructProps) {
     super(scope, id);
@@ -98,6 +101,38 @@ export class VpcEndpointsConstruct extends Construct {
       endpointSecurityGroup,
       environment
     );
+
+    // CodeDeploy Endpoints (required for agent in NAT-free VPC)
+    // https://docs.aws.amazon.com/codedeploy/latest/userguide/vpc-endpoints.html
+    this.codeDeployEndpoint = this.createInterfaceEndpoint(
+      'CodeDeploy',
+      vpc,
+      ec2.InterfaceVpcEndpointAwsService.CODEDEPLOY,
+      endpointSecurityGroup,
+      environment
+    );
+
+    this.codeDeployCommandsEndpoint = this.createInterfaceEndpoint(
+      'CodeDeployCommands',
+      vpc,
+      ec2.InterfaceVpcEndpointAwsService.CODEDEPLOY_COMMANDS_SECURE,
+      endpointSecurityGroup,
+      environment
+    );
+
+    // Cognito IDP Endpoint (required for aws-jwt-verify JWKS fetch in NAT-free VPC)
+    // https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html
+    // Note: cognito-idp only supports us-east-1b/c/d — exclude us-east-1a subnets
+    this.cognitoIdpEndpoint = new ec2.InterfaceVpcEndpoint(this, 'CognitoIdpEndpoint', {
+      vpc,
+      service: ec2.InterfaceVpcEndpointAwsService.COGNITO_IDP,
+      privateDnsEnabled: true,
+      securityGroups: [endpointSecurityGroup],
+      subnets: {
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        availabilityZones: ['us-east-1b', 'us-east-1c'],
+      },
+    });
   }
 
   /**
@@ -133,6 +168,9 @@ export class VpcEndpointsConstruct extends Construct {
       secretsManager: this.secretsManagerEndpoint.vpcEndpointId,
       monitoring: this.monitoringEndpoint.vpcEndpointId,
       xray: this.xrayEndpoint.vpcEndpointId,
+      codeDeploy: this.codeDeployEndpoint.vpcEndpointId,
+      codeDeployCommands: this.codeDeployCommandsEndpoint.vpcEndpointId,
+      cognitoIdp: this.cognitoIdpEndpoint.vpcEndpointId,
     };
   }
 }

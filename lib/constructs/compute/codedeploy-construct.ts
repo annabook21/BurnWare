@@ -57,8 +57,9 @@ export class CodeDeployConstruct extends Construct {
         stoppedDeployment: true,
         deploymentInAlarm: false, // Can be enabled with CloudWatch alarms
       },
-      // Install CodeDeploy agent automatically
-      installAgent: true,
+      // Agent is installed explicitly in user data from S3 resource kit
+      // with enable_auth_policy: true for VPC endpoint mode.
+      installAgent: false,
     });
   }
 

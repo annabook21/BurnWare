@@ -32,10 +32,8 @@ export interface CreateLinkData {
 }
 
 export class LinkModel {
-  private db: Pool;
-
-  constructor() {
-    this.db = getDb();
+  private get db(): Pool {
+    return getDb();
   }
 
   /**

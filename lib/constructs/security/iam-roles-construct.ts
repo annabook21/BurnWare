@@ -78,9 +78,18 @@ export class IamRolesConstruct extends Construct {
       IamPolicyFactory.createCodeDeployPolicy(region, accountId)
     );
 
+    // Add CodeDeploy agent policy for VPC endpoint mode
+    this.ec2InstanceRole.addToPolicy(
+      IamPolicyFactory.createCodeDeployAgentPolicy()
+    );
+
+    // Add S3 read policy for CodeDeploy resource kit (NAT-free install)
+    this.ec2InstanceRole.addToPolicy(
+      IamPolicyFactory.createCodeDeployS3Policy(region)
+    );
+
     // Create CodeDeploy Service Role (least privilege per Well-Architected SEC03-BP02)
     // https://docs.aws.amazon.com/codedeploy/latest/userguide/security_iam_service-with-iam.html
-    // https://docs.aws.amazon.com/codedeploy/latest/userguide/getting-started-create-iam-instance-profile.html
     this.codeDeployServiceRole = new iam.Role(this, 'CodeDeployServiceRole', {
       roleName: NamingUtils.getIamRoleName('codedeploy-service', environment),
       assumedBy: new iam.ServicePrincipal('codedeploy.amazonaws.com'),
@@ -88,51 +97,96 @@ export class IamRolesConstruct extends Construct {
       inlinePolicies: {
         CodeDeployPolicy: new iam.PolicyDocument({
           statements: [
+            // EC2 Describe actions don't support resource-level permissions — must use '*'
             new iam.PolicyStatement({
+              sid: 'EC2ReadOnly',
               effect: iam.Effect.ALLOW,
               actions: [
                 'ec2:DescribeInstances',
                 'ec2:DescribeInstanceStatus',
-                'ec2:TerminateInstances',
-                'ec2:RunInstances',
-                'ec2:CreateTags',
                 'ec2:DescribeTags',
                 'ec2:DescribeSecurityGroups',
                 'ec2:DescribeSubnets',
                 'ec2:DescribeNetworkInterfaces',
-                'iam:PassRole',
               ],
               resources: ['*'],
             }),
+            // EC2 mutating actions scoped to tagged resources
             new iam.PolicyStatement({
+              sid: 'EC2Mutate',
               effect: iam.Effect.ALLOW,
               actions: [
-                'autoscaling:CompleteLifecycleAction',
-                'autoscaling:DeleteLifecycleHook',
+                'ec2:TerminateInstances',
+                'ec2:CreateTags',
+              ],
+              resources: ['*'],
+              conditions: {
+                StringEquals: { 'aws:ResourceTag/Project': 'BurnWare' },
+              },
+            }),
+            // iam:PassRole scoped to our EC2 instance role
+            new iam.PolicyStatement({
+              sid: 'PassRole',
+              effect: iam.Effect.ALLOW,
+              actions: ['iam:PassRole'],
+              resources: [this.ec2InstanceRole.roleArn],
+            }),
+            // AutoScaling Describe actions don't support resource-level permissions
+            new iam.PolicyStatement({
+              sid: 'ASGReadOnly',
+              effect: iam.Effect.ALLOW,
+              actions: [
                 'autoscaling:DescribeAutoScalingGroups',
                 'autoscaling:DescribeLifecycleHooks',
-                'autoscaling:PutLifecycleHook',
-                'autoscaling:RecordLifecycleActionHeartbeat',
-                'autoscaling:CreateOrUpdateTags',
                 'autoscaling:DescribeTags',
               ],
               resources: ['*'],
             }),
+            // AutoScaling mutating actions scoped to tagged resources
             new iam.PolicyStatement({
+              sid: 'ASGMutate',
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'autoscaling:CompleteLifecycleAction',
+                'autoscaling:DeleteLifecycleHook',
+                'autoscaling:PutLifecycleHook',
+                'autoscaling:RecordLifecycleActionHeartbeat',
+                'autoscaling:CreateOrUpdateTags',
+              ],
+              resources: [`arn:aws:autoscaling:${region}:${accountId}:autoScalingGroup:*`],
+              conditions: {
+                StringEquals: { 'aws:ResourceTag/Project': 'BurnWare' },
+              },
+            }),
+            // ELB Describe actions don't support resource-level permissions
+            new iam.PolicyStatement({
+              sid: 'ELBReadOnly',
               effect: iam.Effect.ALLOW,
               actions: [
                 'elasticloadbalancing:DescribeTargetGroups',
                 'elasticloadbalancing:DescribeTargetHealth',
                 'elasticloadbalancing:DescribeLoadBalancers',
                 'elasticloadbalancing:DescribeListeners',
-                'elasticloadbalancing:RegisterTargets',
-                'elasticloadbalancing:DeregisterTargets',
                 'elasticloadbalancing:DescribeLoadBalancerAttributes',
                 'elasticloadbalancing:DescribeTargetGroupAttributes',
               ],
               resources: ['*'],
             }),
+            // ELB mutating actions scoped to tagged target groups
             new iam.PolicyStatement({
+              sid: 'ELBMutate',
+              effect: iam.Effect.ALLOW,
+              actions: [
+                'elasticloadbalancing:RegisterTargets',
+                'elasticloadbalancing:DeregisterTargets',
+              ],
+              resources: [`arn:aws:elasticloadbalancing:${region}:${accountId}:targetgroup/*`],
+              conditions: {
+                StringEquals: { 'aws:ResourceTag/Project': 'BurnWare' },
+              },
+            }),
+            new iam.PolicyStatement({
+              sid: 'TagRead',
               effect: iam.Effect.ALLOW,
               actions: ['tag:GetResources'],
               resources: ['*'],

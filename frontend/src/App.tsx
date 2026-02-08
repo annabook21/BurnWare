@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary, FallbackProps } from 'react-error-boundary';
 import { ThemeProvider } from 'styled-components';
 import { GlobalStyles } from './theme/global-styles';
 import { aimTheme } from './theme/aim-theme';
@@ -13,6 +14,7 @@ import { Dashboard } from './pages/Dashboard';
 import { SendPage } from './pages/SendPage';
 import { LoginWindow } from './components/auth/LoginWindow';
 import styled from 'styled-components';
+import { Toaster } from 'sonner';
 import { getAccessToken } from './config/cognito-config';
 
 const AppContainer = styled.div`
@@ -29,6 +31,49 @@ const LoginDesktop = styled.div`
   align-items: center;
   justify-content: center;
 `;
+
+const ErrorFallback: React.FC<FallbackProps> = ({ resetErrorBoundary }) => (
+  <LoginDesktop>
+    <div
+      style={{
+        background: aimTheme.colors.gray,
+        border: `2px outset ${aimTheme.colors.gray}`,
+        padding: 0,
+        width: 320,
+        fontFamily: aimTheme.fonts.primary,
+      }}
+    >
+      <div
+        style={{
+          background: aimTheme.colors.blueGradientStart,
+          color: aimTheme.colors.white,
+          padding: '4px 8px',
+          fontWeight: 'bold',
+          fontSize: aimTheme.fonts.size.normal,
+        }}
+      >
+        BurnWare - Error
+      </div>
+      <div style={{ padding: '16px' }}>
+        <p style={{ margin: '0 0 12px', fontSize: aimTheme.fonts.size.normal }}>
+          Something went wrong. Please reload the application.
+        </p>
+        <button
+          onClick={resetErrorBoundary}
+          style={{
+            padding: '4px 16px',
+            border: `2px outset ${aimTheme.colors.gray}`,
+            background: aimTheme.colors.gray,
+            fontFamily: aimTheme.fonts.primary,
+            cursor: 'pointer',
+          }}
+        >
+          Reload
+        </button>
+      </div>
+    </div>
+  </LoginDesktop>
+);
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -70,8 +115,18 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={aimTheme}>
       <GlobalStyles />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            fontFamily: aimTheme.fonts.primary,
+            fontSize: aimTheme.fonts.size.normal,
+          },
+        }}
+      />
       <BrowserRouter>
         <AppContainer>
+          <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
           <Routes>
             {/* Public route - anonymous message sending */}
             <Route path="/l/:linkId" element={<SendPage />} />
@@ -117,6 +172,7 @@ const App: React.FC = () => {
               }
             />
           </Routes>
+          </ErrorBoundary>
         </AppContainer>
       </BrowserRouter>
     </ThemeProvider>

@@ -28,7 +28,7 @@ export const updateLinkSchema = Joi.object({
  * Schema for link ID parameter
  */
 export const linkIdSchema = Joi.object({
-  link_id: Joi.string().alphanum().min(8).max(16).required(),
+  link_id: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).min(8).max(16).required(),
 });
 
 /**

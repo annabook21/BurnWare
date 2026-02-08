@@ -28,7 +28,7 @@ export class RdsConstruct extends Construct {
   public readonly instance: rds.DatabaseInstance;
   public readonly secret: secretsmanager.ISecret;
   public readonly endpoint: string;
-  public readonly port: number;
+  public readonly port: string;
 
   constructor(scope: Construct, id: string, props: RdsConstructProps) {
     super(scope, id);
@@ -124,14 +124,14 @@ export class RdsConstruct extends Construct {
       preferredMaintenanceWindow: 'sun:04:00-sun:05:00',
       parameterGroup,
       enablePerformanceInsights: true,
-      performanceInsightRetention: rds.PerformanceInsightRetention.DEFAULT,
+      performanceInsightRetention: rds.PerformanceInsightRetention.LONG_TERM,
       removalPolicy: enableDeletionProtection ? RemovalPolicy.SNAPSHOT : RemovalPolicy.DESTROY,
       cloudwatchLogsExports: ['postgresql', 'upgrade'],
-      autoMinorVersionUpgrade: true,
+      autoMinorVersionUpgrade: false, // Controlled upgrades during maintenance windows
     });
 
     this.endpoint = this.instance.dbInstanceEndpointAddress;
-    this.port = Number(this.instance.dbInstanceEndpointPort);
+    this.port = this.instance.dbInstanceEndpointPort;
   }
 
   /**

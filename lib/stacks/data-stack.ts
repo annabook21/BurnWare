@@ -25,7 +25,7 @@ export interface DataStackProps extends StackProps {
 
 export class DataStack extends Stack {
   public readonly dbEndpoint: string;
-  public readonly dbPort: number;
+  public readonly dbPort: string;
   public readonly dbSecretArn: string;
   public readonly deploymentBucket: s3.IBucket;
 
@@ -67,6 +67,7 @@ export class DataStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       enforceSSL: true,
+      versioned: true,
     });
     this.deploymentBucket = deploymentBucketResource;
 
@@ -85,7 +86,7 @@ export class DataStack extends Stack {
     });
 
     new CfnOutput(this, 'DbPort', {
-      value: this.dbPort.toString(),
+      value: this.dbPort,
       description: 'RDS PostgreSQL Port',
       exportName: `${environment}-db-port`,
     });

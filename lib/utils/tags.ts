@@ -22,7 +22,6 @@ export class TagUtils {
     Tags.of(construct).add('Application', APP_NAME);
     Tags.of(construct).add('Environment', config.environment);
     Tags.of(construct).add('ManagedBy', 'CDK');
-    Tags.of(construct).add('Timestamp', new Date().toISOString());
 
     if (config.owner) {
       Tags.of(construct).add('Owner', config.owner);

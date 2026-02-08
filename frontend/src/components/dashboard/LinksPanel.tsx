@@ -11,12 +11,14 @@ import { AwayMessageDialog } from '../aim-ui/AwayMessageDialog';
 import { CreateLinkDialog } from './CreateLinkDialog';
 import { QRCodeDialog } from './QRCodeDialog';
 import axios from 'axios';
-import { awsConfig } from '../../config/aws-config';
+import { toast } from 'sonner';
+import apiClient from '../../utils/api-client';
+import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import type { Link } from '../../types';
 
 interface LinksPanelProps {
-  onLinkSelect: (linkId: string) => void;
+  onLinkSelect: (linkId: string, linkName: string) => void;
   zIndex?: number;
   onFocus?: () => void;
 }
@@ -33,29 +35,34 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
   const [showDescDialog, setShowDescDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
 
-  useEffect(() => {
-    fetchLinks();
-  }, []);
-
-  const fetchLinks = async () => {
+  const fetchLinks = async (signal?: AbortSignal) => {
     try {
       const token = await getAccessToken();
-      const response = await axios.get(`${awsConfig.api.baseUrl}/api/v1/dashboard/links`, {
+      const response = await apiClient.get(endpoints.dashboard.links(), {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
 
       setLinks(response.data.data || []);
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch links:', error);
-      setLoading(false);
+      if (!axios.isCancel(error)) {
+        console.error('Failed to fetch links:', error);
+        setLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchLinks(controller.signal);
+    return () => controller.abort();
+  }, []);
 
   const handleLinkClick = (linkId: string) => {
     const link = links.find((l) => l.link_id === linkId);
     if (link && link.message_count > 0) {
-      onLinkSelect(linkId);
+      onLinkSelect(linkId, link.display_name);
     } else {
       // Show link details/QR code if no messages
       setSelectedLink(link || null);
@@ -70,8 +77,8 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
   const handleLinkCreated = async (data: { display_name: string; description?: string }) => {
     try {
       const token = await getAccessToken();
-      const response = await axios.post(
-        `${awsConfig.api.baseUrl}/api/v1/dashboard/links`,
+      const response = await apiClient.post(
+        endpoints.dashboard.links(),
         data,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -87,7 +94,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
       setShowQRDialog(true);
     } catch (error) {
       console.error('Failed to create link:', error);
-      alert('Failed to create link. Please try again.');
+      toast.error('Failed to create link. Please try again.');
     }
   };
 
@@ -96,8 +103,8 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
 
     try {
       const token = await getAccessToken();
-      await axios.patch(
-        `${awsConfig.api.baseUrl}/api/v1/dashboard/links/${selectedLink.link_id}`,
+      await apiClient.patch(
+        endpoints.dashboard.link(selectedLink.link_id),
         { description },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -108,7 +115,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({ onLinkSelect, zIndex, on
       setShowDescDialog(false);
     } catch (error) {
       console.error('Failed to update description:', error);
-      alert('Failed to update description.');
+      toast.error('Failed to update description.');
     }
   };
 

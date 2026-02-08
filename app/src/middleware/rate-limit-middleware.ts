@@ -59,13 +59,17 @@ export const strictRateLimiter = rateLimit({
 });
 
 /**
- * IP-based rate limiter for public endpoints
- * Note: WAF provides primary rate limiting, this is backup
+ * Rate limiter for anonymous send endpoint
+ * Uses recipient_link_id (never IP) to protect sender anonymity.
+ * WAF provides primary IP-based rate limiting; this limits per-link abuse.
  */
 export const publicRateLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 20, // 20 requests per 5 minutes per IP
+  max: 20, // 20 requests per 5 minutes per link
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => req.ip || 'unknown',
+  keyGenerator: (req: Request) => {
+    const linkId = (req.body as { recipient_link_id?: string })?.recipient_link_id;
+    return linkId ? `link:${linkId}` : 'anon:unknown';
+  },
 });

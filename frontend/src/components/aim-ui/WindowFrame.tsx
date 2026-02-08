@@ -4,7 +4,7 @@
  * File size: ~175 lines
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Draggable from 'react-draggable';
 import { TitleBar } from './TitleBar';
@@ -24,7 +24,9 @@ interface WindowFrameProps {
 }
 
 const WindowContainer = styled.div<{ width: number; height: number; zIndex: number }>`
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: ${(props) => props.width}px;
   height: ${(props) => props.height}px;
   border: ${aimTheme.borders.outset};
@@ -57,6 +59,18 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
 }) => {
   const [position, setPosition] = useState({ x: initialX, y: initialY });
 
+  useEffect(() => {
+    setPosition({ x: initialX, y: initialY });
+  }, [initialX, initialY]);
+
+  const TASKBAR_H = 28;
+  const bounds = {
+    left: 0,
+    top: 0,
+    right: Math.max(0, window.innerWidth - width),
+    bottom: Math.max(0, window.innerHeight - TASKBAR_H - height),
+  };
+
   const handleDrag = (_e: unknown, data: { x: number; y: number }) => {
     setPosition({ x: data.x, y: data.y });
   };
@@ -72,7 +86,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
       handle=".window-title-bar"
       position={position}
       onDrag={handleDrag}
-      bounds="parent"
+      bounds={bounds}
     >
       <WindowContainer
         width={width}

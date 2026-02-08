@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { sendMessage, getLinkMetadata, healthCheck } from '../controllers/send-controller';
+import { sendMessage, getLinkMetadata, healthCheck, readinessCheck } from '../controllers/send-controller';
 import { validateBody, validateParams } from '../middleware/validation-middleware';
 import { sendMessageSchema } from '../validators/message-validators';
 import { linkIdSchema } from '../validators/link-validators';
@@ -18,6 +18,12 @@ const router = Router();
  * GET /health
  */
 router.get('/health', healthCheck);
+
+/**
+ * Deep health check — tests database connectivity (for monitoring only)
+ * GET /health/ready
+ */
+router.get('/health/ready', readinessCheck);
 
 /**
  * Send anonymous message

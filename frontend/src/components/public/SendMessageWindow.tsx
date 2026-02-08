@@ -10,7 +10,9 @@ import { WindowFrame } from '../aim-ui/WindowFrame';
 import { aimTheme } from '../../theme/aim-theme';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import axios from 'axios';
-import { awsConfig } from '../../config/aws-config';
+import { toast } from 'sonner';
+import apiClient from '../../utils/api-client';
+import { endpoints } from '../../config/api-endpoints';
 
 interface SendMessageWindowProps {
   linkId: string;
@@ -116,44 +118,73 @@ const SendButton = styled.button`
 
 const MAX_LENGTH = 5000;
 
+const WINDOW_WIDTH = 520;
+const WINDOW_HEIGHT = 480;
+
+function useCenteredPosition(width: number, height: number) {
+  const [pos, setPos] = useState(() => ({
+    x: Math.max(0, (window.innerWidth - width) / 2),
+    y: Math.max(0, (window.innerHeight - height) / 2 - 20),
+  }));
+
+  useEffect(() => {
+    const onResize = () =>
+      setPos({
+        x: Math.max(0, (window.innerWidth - width) / 2),
+        y: Math.max(0, (window.innerHeight - height) / 2 - 20),
+      });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [width, height]);
+
+  return pos;
+}
+
 export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) => {
   const [message, setMessage] = useState('');
   const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const { playMatchStrike } = useAIMSounds();
+  const center = useCenteredPosition(WINDOW_WIDTH, WINDOW_HEIGHT);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const fetchLinkMetadata = async () => {
+      try {
+        const response = await apiClient.get(
+          endpoints.public.linkMetadata(linkId),
+          { signal: controller.signal }
+        );
+        setLinkInfo(response.data.data);
+        setLoading(false);
+      } catch (error) {
+        if (!axios.isCancel(error)) {
+          console.error('Failed to fetch link metadata:', error);
+          setLoading(false);
+        }
+      }
+    };
     fetchLinkMetadata();
+    return () => controller.abort();
   }, [linkId]);
-
-  const fetchLinkMetadata = async () => {
-    try {
-      const response = await axios.get(`${awsConfig.api.baseUrl}/api/v1/link/${linkId}/metadata`);
-      setLinkInfo(response.data.data);
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch link metadata:', error);
-      setLoading(false);
-    }
-  };
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
 
     setSending(true);
     try {
-      await axios.post(`${awsConfig.api.baseUrl}/api/v1/send`, {
+      await apiClient.post(endpoints.public.send(), {
         recipient_link_id: linkId,
         message: message.trim(),
       });
 
       playMatchStrike();
-      alert('✅ Message sent successfully!\n\nYour message is anonymous and the recipient can view it in their dashboard.');
+      toast.success('Message sent! Your message is anonymous and the recipient can view it in their dashboard.');
       setMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
-      alert('❌ Failed to send message. Please try again.');
+      toast.error('Failed to send message. Please try again.');
     } finally {
       setSending(false);
     }
@@ -161,7 +192,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
 
   if (loading) {
     return (
-      <WindowFrame title="Loading..." width={500} height={400}>
+      <WindowFrame title="Loading..." width={500} height={400} initialX={center.x} initialY={center.y}>
         <Container>
           <div style={{ padding: aimTheme.spacing.md }}>Loading...</div>
         </Container>
@@ -171,7 +202,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
 
   if (!linkInfo) {
     return (
-      <WindowFrame title="Error" width={400} height={200}>
+      <WindowFrame title="Error" width={400} height={200} initialX={center.x} initialY={center.y}>
         <Container>
           <div style={{ padding: aimTheme.spacing.md }}>Link not found or expired.</div>
         </Container>
@@ -180,7 +211,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   }
 
   return (
-    <WindowFrame title="📨 Send Anonymous Message" width={520} height={480}>
+    <WindowFrame title="📨 Send Anonymous Message" width={WINDOW_WIDTH} height={WINDOW_HEIGHT} initialX={center.x} initialY={center.y}>
       <Container>
         <InfoSection>
           <LinkTitle>

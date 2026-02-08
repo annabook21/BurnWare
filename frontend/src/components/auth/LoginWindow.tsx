@@ -155,6 +155,49 @@ const Hint = styled.div`
   margin-top: ${aimTheme.spacing.xs};
 `;
 
+const RuleList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: ${aimTheme.spacing.xs} 0 0 0;
+`;
+
+const RuleLine = styled.li<{ $passed: boolean }>`
+  font-size: ${aimTheme.fonts.size.tiny};
+  color: ${({ $passed }) => ($passed ? '#006600' : aimTheme.colors.darkGray)};
+  line-height: 1.6;
+`;
+
+const COGNITO_ERROR_MESSAGES: Record<string, string> = {
+  NotAuthorizedException: 'Incorrect email or password.',
+  UserNotConfirmedException: 'Please verify your email first.',
+  UserNotFoundException: 'No account found with this email.',
+  PasswordResetRequiredException: 'Password reset required. Check your email.',
+  TooManyRequestsException: 'Too many attempts. Please try again later.',
+  LimitExceededException: 'Too many attempts. Please try again later.',
+  InvalidPasswordException: 'Password does not meet requirements.',
+  UsernameExistsException: 'An account with this email already exists.',
+  CodeMismatchException: 'Invalid verification code.',
+  ExpiredCodeException: 'Verification code has expired. Please request a new one.',
+};
+
+function getCognitoErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    const friendlyMessage = COGNITO_ERROR_MESSAGES[err.name];
+    if (friendlyMessage) return friendlyMessage;
+    if (err.message.includes('Network')) return 'Check your internet connection.';
+    return err.message;
+  }
+  return 'An unexpected error occurred.';
+}
+
+const PASSWORD_RULES = [
+  { label: '12+ characters', test: (pw: string) => pw.length >= 12 },
+  { label: 'Uppercase letter', test: (pw: string) => /[A-Z]/.test(pw) },
+  { label: 'Lowercase letter', test: (pw: string) => /[a-z]/.test(pw) },
+  { label: 'Number', test: (pw: string) => /\d/.test(pw) },
+  { label: 'Symbol', test: (pw: string) => /[^A-Za-z0-9]/.test(pw) },
+];
+
 const WINDOW_TITLES: Record<AuthMode, string> = {
   signIn: 'Sign On to BurnWare',
   signUp: 'Get a Screen Name',
@@ -165,10 +208,10 @@ const WINDOW_TITLES: Record<AuthMode, string> = {
 
 const WINDOW_HEIGHTS: Record<AuthMode, number> = {
   signIn: 520,
-  signUp: 620,
+  signUp: 680,
   confirm: 440,
   forgotPassword: 420,
-  resetPassword: 540,
+  resetPassword: 600,
 };
 
 export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
@@ -216,8 +259,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
         setError('Login failed. Please check your credentials.');
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
     }
     setLoading(false);
   };
@@ -246,8 +288,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
       setSuccess('Account created! Check your email for a verification code.');
       setMode('confirm');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Sign up failed.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -271,8 +312,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
         setLoading(false);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Verification failed.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
       setLoading(false);
     }
   };
@@ -284,8 +324,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
       await resendConfirmationCode(email);
       setSuccess('A new verification code has been sent to your email.');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to resend code.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
     }
   };
 
@@ -300,8 +339,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
       setSuccess('A password reset code has been sent to your email.');
       setMode('resetPassword');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to send reset code.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -323,8 +361,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
       setSuccess('Password reset! You can now sign in with your new password.');
       resetForm('signIn', true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Password reset failed.';
-      setError(message);
+      setError(getCognitoErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -403,7 +440,17 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+        {password ? (
+          <RuleList>
+            {PASSWORD_RULES.map((rule) => (
+              <RuleLine key={rule.label} $passed={rule.test(password)}>
+                {rule.test(password) ? '\u2713' : '\u2717'} {rule.label}
+              </RuleLine>
+            ))}
+          </RuleList>
+        ) : (
+          <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+        )}
       </Field>
 
       <Field>
@@ -517,7 +564,17 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+        {password ? (
+          <RuleList>
+            {PASSWORD_RULES.map((rule) => (
+              <RuleLine key={rule.label} $passed={rule.test(password)}>
+                {rule.test(password) ? '\u2713' : '\u2717'} {rule.label}
+              </RuleLine>
+            ))}
+          </RuleList>
+        ) : (
+          <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
+        )}
       </Field>
 
       <Field>

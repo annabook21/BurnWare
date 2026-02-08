@@ -26,10 +26,8 @@ export interface CreateMessageData {
 }
 
 export class MessageModel {
-  private db: Pool;
-
-  constructor() {
-    this.db = getDb();
+  private get db(): Pool {
+    return getDb();
   }
 
   /**
@@ -62,7 +60,7 @@ export class MessageModel {
    */
   async findByThreadId(threadId: string, limit: number, offset: number): Promise<Message[]> {
     const query = `
-      SELECT message_id, thread_id, content, created_at, sender_type
+      SELECT message_id, thread_id, content, created_at, sender_type, sender_id
       FROM messages
       WHERE thread_id = $1
       ORDER BY created_at ASC

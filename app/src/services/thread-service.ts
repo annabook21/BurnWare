@@ -5,12 +5,13 @@
  */
 
 import { ThreadModel, Thread, CreateThreadData } from '../models/thread-model';
-import { MessageModel } from '../models/message-model';
+import { MessageModel, Message } from '../models/message-model';
 import { LinkModel } from '../models/link-model';
 import { CryptoUtils } from '../utils/crypto-utils';
 import { NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
+import { getDb } from '../config/database';
 
 export class ThreadService {
   private threadModel: ThreadModel;
@@ -99,7 +100,7 @@ export class ThreadService {
     limit: number = 20
   ): Promise<{
     thread: Thread;
-    messages: unknown[];
+    messages: Message[];
     total_messages: number;
   }> {
     // Get thread
@@ -124,7 +125,7 @@ export class ThreadService {
   }
 
   /**
-   * Burn thread (owner action)
+   * Burn thread (owner action) — atomic transaction
    */
   async burnThread(threadId: string, userId: string): Promise<void> {
     // Get thread
@@ -142,11 +143,19 @@ export class ThreadService {
       return;
     }
 
-    // Delete all messages
-    await this.messageModel.deleteByThreadId(threadId);
-
-    // Mark thread as burned
-    await this.threadModel.burn(threadId);
+    // Atomic: delete messages + mark burned in single transaction
+    const client = await getDb().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM messages WHERE thread_id = $1', [threadId]);
+      await client.query('UPDATE threads SET burned = TRUE WHERE thread_id = $1', [threadId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
 
     LoggerUtils.logMetric('thread_burned', 1, 'count');
     LoggerUtils.logSecurityEvent('thread_burned', {

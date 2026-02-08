@@ -5,7 +5,7 @@
 
 import dotenv from 'dotenv';
 import { databaseConfig } from './config/database';
-import { initializeXRay } from './config/xray';
+import { initializeTracing } from './config/tracing';
 import { startServer } from './server';
 import { logger } from './config/logger';
 
@@ -19,8 +19,8 @@ async function initialize(): Promise<void> {
   try {
     logger.info('Starting BurnWare API server');
 
-    // Initialize X-Ray tracing
-    initializeXRay();
+    // Initialize OpenTelemetry tracing
+    await initializeTracing();
 
     // Initialize database connection
     await databaseConfig.initialize();

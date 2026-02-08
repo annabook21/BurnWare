@@ -62,8 +62,8 @@ export const getUserLinks = asyncHandler(
     const userId = req.user!.sub;
     const { page, limit } = req.query as { page?: string; limit?: string };
 
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 20;
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit || '20', 10) || 20));
 
     const result = await linkService.getUserLinks(userId, pageNum, limitNum);
 
@@ -85,7 +85,7 @@ export const getUserLinks = asyncHandler(
 export const getLinkById = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user!.sub;
-    const { link_id } = req.params;
+    const { link_id } = req.params as Record<string, string>;
 
     const link = await linkService.getLinkById(link_id);
 
@@ -105,7 +105,7 @@ export const getLinkById = asyncHandler(
 export const updateLink = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user!.sub;
-    const { link_id } = req.params;
+    const { link_id } = req.params as Record<string, string>;
     const updates = req.validated as {
       display_name?: string;
       description?: string;
@@ -125,7 +125,7 @@ export const updateLink = asyncHandler(
 export const deleteLink = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = req.user!.sub;
-    const { link_id } = req.params;
+    const { link_id } = req.params as Record<string, string>;
 
     await linkService.deleteLink(link_id, userId);
 

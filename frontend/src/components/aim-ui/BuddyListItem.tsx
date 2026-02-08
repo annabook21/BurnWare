@@ -60,7 +60,7 @@ const MessageBadge = styled.span`
   text-align: center;
 `;
 
-export const BuddyListItem: React.FC<BuddyListItemProps> = ({
+export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
   name,
   status,
   messageCount = 0,
@@ -75,4 +75,4 @@ export const BuddyListItem: React.FC<BuddyListItemProps> = ({
       {messageCount > 0 && <MessageBadge>{messageCount}</MessageBadge>}
     </ItemContainer>
   );
-};
+});

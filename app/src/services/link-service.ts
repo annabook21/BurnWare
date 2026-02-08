@@ -10,6 +10,7 @@ import { QRCodeService } from './qr-code-service';
 import { ValidationError, NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
+import { getDb } from '../config/database';
 
 const MAX_LINKS_PER_USER = 50;
 
@@ -182,5 +183,65 @@ export class LinkService {
       description: link.description,
       qr_code_url: link.qr_code_url,
     };
+  }
+
+  /**
+   * Burn link and all its threads/messages — atomic transaction
+   */
+  async burnLink(linkId: string, userId: string): Promise<void> {
+    // Verify ownership (use raw query to include burned links)
+    const linkResult = await getDb().query(
+      'SELECT * FROM links WHERE link_id = $1',
+      [linkId]
+    );
+    const link = linkResult.rows[0];
+
+    if (!link) {
+      throw new NotFoundError('Link');
+    }
+
+    if (link.owner_user_id !== userId) {
+      throw new AuthorizationError('Not authorized to burn this link');
+    }
+
+    if (link.burned) {
+      logger.info('Link already burned', { link_id: linkId });
+      return;
+    }
+
+    // Atomic: delete all messages → burn all threads → mark link burned
+    const client = await getDb().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'DELETE FROM messages WHERE thread_id IN (SELECT thread_id FROM threads WHERE link_id = $1)',
+        [linkId]
+      );
+      await client.query(
+        'UPDATE threads SET burned = TRUE WHERE link_id = $1',
+        [linkId]
+      );
+      await client.query(
+        'UPDATE links SET burned = TRUE WHERE link_id = $1',
+        [linkId]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    LoggerUtils.logMetric('link_burned', 1, 'count');
+    LoggerUtils.logSecurityEvent('link_burned', {
+      link_id: linkId,
+      user_id: userId,
+    });
+
+    logger.info('Link burned successfully', {
+      link_id: linkId,
+      user_id: userId,
+    });
   }
 }

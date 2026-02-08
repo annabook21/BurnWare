@@ -114,6 +114,39 @@ export class IamPolicyFactory {
   }
 
   /**
+   * Create CodeDeploy agent policy for VPC endpoint mode
+   * Required when agent communicates via codedeploy-commands-secure endpoint
+   * https://docs.aws.amazon.com/codedeploy/latest/userguide/vpc-endpoints.html
+   */
+  static createCodeDeployAgentPolicy(): iam.PolicyStatement {
+    return new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'codedeploy-commands-secure:GetCommand',
+        'codedeploy-commands-secure:PollHostCommand',
+      ],
+      resources: ['*'],
+    });
+  }
+
+  /**
+   * Create S3 read policy for CodeDeploy resource kit bucket.
+   * In a NAT-free VPC, the agent installer is fetched from s3://aws-codedeploy-{region}/
+   * via the S3 gateway endpoint, which requires IAM auth.
+   * https://docs.aws.amazon.com/codedeploy/latest/userguide/codedeploy-agent-operations-install-linux.html
+   */
+  static createCodeDeployS3Policy(region: string): iam.PolicyStatement {
+    return new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['s3:GetObject', 's3:ListBucket'],
+      resources: [
+        `arn:aws:s3:::aws-codedeploy-${region}`,
+        `arn:aws:s3:::aws-codedeploy-${region}/*`,
+      ],
+    });
+  }
+
+  /**
    * Create CodeDeploy policy for EC2 instances
    */
   static createCodeDeployPolicy(region: string, accountId: string): iam.PolicyStatement {

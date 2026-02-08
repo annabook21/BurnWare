@@ -7,7 +7,7 @@
 import * as path from 'path';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput, Duration, BundlingOutput, RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
@@ -32,6 +32,10 @@ export interface AppStackProps extends StackProps {
   albSecurityGroup: ec2.ISecurityGroup;
   ec2SecurityGroup: ec2.ISecurityGroup;
   userPoolArn: string;
+  /** Cognito User Pool ID (for backend JWT verification) */
+  cognitoUserPoolId: string;
+  /** Cognito App Client ID (for backend JWT verification) */
+  cognitoClientId: string;
   environment: string;
   domainName: string;
   certificateArn?: string;
@@ -67,6 +71,8 @@ export class AppStack extends Stack {
       privateSubnets,
       albSecurityGroup,
       ec2SecurityGroup,
+      cognitoUserPoolId,
+      cognitoClientId,
       environment,
       domainName,
       certificateArn,
@@ -102,12 +108,13 @@ export class AppStack extends Stack {
     // Create Application Load Balancer
     // https://docs.aws.amazon.com/elasticloadbalancing/latest/application/https-listener-certificates.html
     this.alb = new elbv2.ApplicationLoadBalancer(this, 'Alb', {
-      loadBalancerName: NamingUtils.getResourceName('alb', environment),
+      // No explicit name: CloudFormation needs unique names during ALB replacement
+      // (internetFacing change triggers replacement; old ALB blocks name reuse)
       vpc,
       vpcSubnets: {
-        subnets: publicSubnets,
+        subnets: privateSubnets,
       },
-      internetFacing: true,
+      internetFacing: false,
       securityGroup: albSecurityGroup,
       http2Enabled: true,
       dropInvalidHeaderFields: true,
@@ -115,7 +122,8 @@ export class AppStack extends Stack {
 
     // Create target group
     const targetGroup = new elbv2.ApplicationTargetGroup(this, 'TargetGroup', {
-      targetGroupName: NamingUtils.getResourceName('tg', environment),
+      // No explicit name: allows CloudFormation to replace TG alongside ALB
+      // (avoids "target group cannot be associated with more than one load balancer")
       vpc,
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -175,6 +183,8 @@ export class AppStack extends Stack {
             appVersion,
             logGroup: logGroup.logGroupName,
             environment,
+            cognitoUserPoolId,
+            cognitoClientId,
           }
         : undefined;
 
@@ -213,41 +223,61 @@ export class AppStack extends Stack {
 
     this.albDnsName = this.alb.loadBalancerDnsName;
 
-    // Deploy backend artifact to S3 when deployment bucket is provided and deployBackendArtifact is true
+    // ALB access logging
+    const albLogsBucket = new s3.Bucket(this, 'AlbLogsBucket', {
+      enforceSSL: true,
+      encryption: s3.BucketEncryption.S3_MANAGED, // ALB access logs require SSE-S3 (not KMS)
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [{ expiration: Duration.days(30) }],
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+    this.alb.logAccessLogs(albLogsBucket);
+
+    // Deploy backend artifact to S3 when deployment bucket is provided and deployBackendArtifact is true.
+    // The artifact is a tarball with CodeDeploy-compatible structure:
+    //   appspec.yml, scripts/  (CodeDeploy lifecycle hooks)
+    //   dist/, node_modules/, package.json, ecosystem.config.js  (application)
+    // node_modules contains production deps only (bundled so EC2 never needs npm/internet).
     if (deploymentBucket && deployBackendArtifact) {
       const appPath = path.join(__dirname, '../../app');
+      const tarName = `app-${appVersion}.tar.gz`;
+
+      // Shell commands to build → prune → stage flat CodeDeploy structure → tar.
+      // Runs from the app/ directory. outputDir receives the final tarball.
+      const bundleCommands = (outputDir: string) => [
+        '(test -f package-lock.json && npm ci || npm install)',
+        'npm run build',
+        'npm prune --omit=dev',
+        'rm -rf /tmp/_bw_stage && mkdir -p /tmp/_bw_stage/scripts',
+        'cp deployment/appspec.yml /tmp/_bw_stage/',
+        'cp deployment/scripts/*.sh /tmp/_bw_stage/scripts/',
+        'cp -r dist /tmp/_bw_stage/',
+        'cp -r node_modules /tmp/_bw_stage/',
+        'cp package.json /tmp/_bw_stage/',
+        'cp ecosystem.config.js /tmp/_bw_stage/',
+        `COPYFILE_DISABLE=1 tar -czf "${outputDir}/${tarName}" -C /tmp/_bw_stage .`,
+        'rm -rf /tmp/_bw_stage',
+      ].join(' && ');
+
       new s3deploy.BucketDeployment(this, 'BackendDeploy', {
         sources: [
           s3deploy.Source.asset(appPath, {
             bundling: {
               image: DockerImage.fromRegistry('node:20-alpine'),
-              command: [
-                'sh',
-                '-c',
-                '(test -f package-lock.json && npm ci || npm install) && npm run build && mkdir -p /asset-output && (tar -czf /asset-output/app-' +
-                  appVersion +
-                  '.tar.gz dist package.json package-lock.json ecosystem.config.js deployment 2>/dev/null || tar -czf /asset-output/app-' +
-                  appVersion +
-                  '.tar.gz dist package.json ecosystem.config.js deployment)',
-              ],
+              command: ['sh', '-c', bundleCommands('/asset-output')],
               user: 'root',
+              outputType: BundlingOutput.NOT_ARCHIVED,
               local: {
                 tryBundle(outputDir: string): boolean {
                   try {
-                    const hasLock = fs.existsSync(path.join(appPath, 'package-lock.json'));
-                    execSync(hasLock ? 'npm ci' : 'npm install', { cwd: appPath, stdio: 'inherit' });
-                    execSync('npm run build', { cwd: appPath, stdio: 'inherit' });
-                    const tarPath = path.resolve(outputDir, `app-${appVersion}.tar.gz`);
-                    const lockFile = path.join(appPath, 'package-lock.json');
-                    const tarFiles = fs.existsSync(lockFile)
-                      ? 'dist package.json package-lock.json ecosystem.config.js deployment'
-                      : 'dist package.json ecosystem.config.js deployment';
-                    execSync(`tar -czf "${tarPath}" ${tarFiles}`, {
-                      cwd: appPath,
-                      stdio: 'inherit',
-                    });
+                    execSync(bundleCommands(outputDir), { cwd: appPath, stdio: 'inherit' });
+                    // Restore devDependencies for local development
+                    execSync('npm install', { cwd: appPath, stdio: 'inherit' });
                     return true;
                   } catch {
+                    // Restore deps even on failure so local dev isn't broken
+                    try { execSync('npm install', { cwd: appPath, stdio: 'pipe' }); } catch { /* best effort */ }
                     return false;
                   }
                 },
@@ -257,7 +287,6 @@ export class AppStack extends Stack {
         ],
         destinationBucket: deploymentBucket,
         destinationKeyPrefix: 'releases/',
-        extract: false, // we're deploying a single tarball, not extracting
       });
     }
 

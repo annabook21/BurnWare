@@ -1,16 +1,17 @@
 /**
  * Threads Panel Component
  * Manages thread windows for a link
- * File size: ~185 lines
  */
 
 import React, { useState, useEffect } from 'react';
 import { ChatWindow } from '../aim-ui/ChatWindow';
 import axios from 'axios';
-import { awsConfig } from '../../config/aws-config';
+import { toast } from 'sonner';
+import apiClient from '../../utils/api-client';
+import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
-import type { Thread } from '../../types';
+import type { Message } from '../../types';
 
 interface ThreadsPanelProps {
   linkId: string;
@@ -22,75 +23,102 @@ interface ThreadsPanelProps {
   onFocus?: () => void;
 }
 
+interface ThreadData {
+  thread_id: string;
+  link_id: string;
+  burned: boolean;
+  messages: Message[];
+}
+
 export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   linkId,
   linkName,
   onClose,
-  initialX,
-  initialY,
+  initialX = 320,
+  initialY = 50,
   zIndex,
   onFocus,
 }) => {
-  const [threads, setThreads] = useState<Thread[]>([]);
+  const [threads, setThreads] = useState<ThreadData[]>([]);
   const [loading, setLoading] = useState(true);
   const { playFireExtinguish } = useAIMSounds();
 
-  useEffect(() => {
-    fetchThreads();
-  }, [linkId]);
-
-  const fetchThreads = async () => {
+  const fetchThreads = async (signal?: AbortSignal) => {
     try {
       const token = await getAccessToken();
-      const response = await axios.get(
-        `${awsConfig.api.baseUrl}/api/v1/dashboard/links/${linkId}/threads`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Step 1: Get thread list for this link
+      const listResponse = await apiClient.get(
+        endpoints.dashboard.threads(linkId),
+        { headers, signal }
       );
 
-      setThreads(response.data.data || []);
+      const threadList: { thread_id: string }[] = listResponse.data.data || [];
+
+      // Step 2: Fetch messages for each thread
+      const threadDetails = await Promise.all(
+        threadList.map(async (t) => {
+          const detailResponse = await apiClient.get(
+            endpoints.dashboard.thread(t.thread_id),
+            { headers, signal }
+          );
+          const data = detailResponse.data.data;
+          return {
+            thread_id: data.thread_id,
+            link_id: data.link_id,
+            burned: data.burned,
+            messages: data.messages || [],
+          } as ThreadData;
+        })
+      );
+
+      setThreads(threadDetails.filter((t) => !t.burned));
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch threads:', error);
-      setLoading(false);
+      if (!axios.isCancel(error)) {
+        console.error('Failed to fetch threads:', error);
+        setLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchThreads(controller.signal);
+    return () => controller.abort();
+  }, [linkId]);
 
   const handleSendMessage = async (threadId: string, message: string) => {
     try {
       const token = await getAccessToken();
-      await axios.post(
-        `${awsConfig.api.baseUrl}/api/v1/dashboard/threads/${threadId}/reply`,
+      await apiClient.post(
+        endpoints.dashboard.threadReply(threadId),
         { message },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       await fetchThreads();
     } catch (error) {
       console.error('Failed to send message:', error);
-      alert('Failed to send message. Please try again.');
+      toast.error('Failed to send message. Please try again.');
     }
   };
 
   const handleBurn = async (threadId: string) => {
     try {
       const token = await getAccessToken();
-      await axios.post(
-        `${awsConfig.api.baseUrl}/api/v1/dashboard/threads/${threadId}/burn`,
+      await apiClient.post(
+        endpoints.dashboard.threadBurn(threadId),
         {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       playFireExtinguish();
       await fetchThreads();
     } catch (error) {
       console.error('Failed to burn thread:', error);
-      alert('Failed to burn thread.');
+      toast.error('Failed to burn thread.');
     }
   };
 
@@ -98,24 +126,28 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     return null;
   }
 
-  // Show first thread (in real app, would handle multiple windows)
-  const firstThread = threads[0];
-  if (!firstThread) {
+  if (threads.length === 0) {
+    onClose();
     return null;
   }
 
   return (
-    <ChatWindow
-      threadId={firstThread.thread_id}
-      linkName={linkName}
-      messages={firstThread.messages || []}
-      onSendMessage={(msg) => handleSendMessage(firstThread.thread_id, msg)}
-      onBurn={() => handleBurn(firstThread.thread_id)}
-      onClose={onClose}
-      initialX={initialX}
-      initialY={initialY}
-      zIndex={zIndex}
-      onFocus={onFocus}
-    />
+    <>
+      {threads.map((thread, index) => (
+        <ChatWindow
+          key={thread.thread_id}
+          threadId={thread.thread_id}
+          linkName={linkName}
+          messages={thread.messages}
+          onSendMessage={(msg) => handleSendMessage(thread.thread_id, msg)}
+          onBurn={() => handleBurn(thread.thread_id)}
+          onClose={onClose}
+          initialX={initialX + index * 30}
+          initialY={initialY + index * 30}
+          zIndex={zIndex ? zIndex + index : undefined}
+          onFocus={onFocus}
+        />
+      ))}
+    </>
   );
 };

@@ -10,7 +10,7 @@ import Joi from 'joi';
  * Schema for sending anonymous message
  */
 export const sendMessageSchema = Joi.object({
-  recipient_link_id: Joi.string().alphanum().min(8).max(16).required(),
+  recipient_link_id: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).min(8).max(16).required(),
   message: Joi.string().min(1).max(5000).required().trim(),
   captcha_token: Joi.string().optional(), // WAF CAPTCHA token
 });

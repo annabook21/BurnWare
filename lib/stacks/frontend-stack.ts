@@ -14,6 +14,7 @@ import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { DockerImage } from 'aws-cdk-lib';
 import { TagUtils } from '../utils/tags';
@@ -31,6 +32,8 @@ export interface FrontendStackProps extends StackProps {
   cognitoClientId: string;
   /** API base URL e.g. http://alb-dns-name (from App stack ALB) */
   apiBaseUrl: string;
+  /** ALB for CloudFront VPC Origin /api/* proxy */
+  alb?: elbv2.IApplicationLoadBalancer;
 }
 
 export class FrontendStack extends Stack {
@@ -41,7 +44,7 @@ export class FrontendStack extends Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, webAclArn, cognitoUserPoolId, cognitoClientId, apiBaseUrl } = props;
+    const { environment, domainName, certificateArn, webAclArn, alb } = props;
 
     // Create S3 bucket for SPA assets
     // https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/deploy-a-react-based-single-page-application-to-amazon-s3-and-cloudfront.html
@@ -117,6 +120,18 @@ export class FrontendStack extends Stack {
           compress: true,
           cachePolicy: assetCachePolicy,
         },
+        ...(alb ? {
+          '/api/*': {
+            origin: origins.VpcOrigin.withApplicationLoadBalancer(alb, {
+              protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+            }),
+            viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+            cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+            cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+            originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+          },
+        } : {}),
       },
       errorResponses: [
         {
@@ -149,7 +164,7 @@ export class FrontendStack extends Stack {
             command: [
               'sh',
               '-c',
-              `VITE_COGNITO_USER_POOL_ID="${cognitoUserPoolId}" VITE_COGNITO_CLIENT_ID="${cognitoClientId}" VITE_API_BASE_URL="${apiBaseUrl}" (test -f package-lock.json && npm ci || npm install) && npm run build && cp -r dist/* /asset-output/`,
+              '(test -f package-lock.json && npm ci || npm install) && npm run build && cp -r dist/* /asset-output/',
             ],
             user: 'root',
             local: {
@@ -160,12 +175,6 @@ export class FrontendStack extends Stack {
                   execSync('npm run build', {
                     cwd: frontendPath,
                     stdio: 'inherit',
-                    env: {
-                      ...process.env,
-                      VITE_COGNITO_USER_POOL_ID: cognitoUserPoolId,
-                      VITE_COGNITO_CLIENT_ID: cognitoClientId,
-                      VITE_API_BASE_URL: apiBaseUrl,
-                    },
                   });
                   const distPath = path.join(frontendPath, 'dist');
                   if (fs.existsSync(distPath)) {

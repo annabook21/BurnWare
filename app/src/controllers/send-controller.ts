@@ -9,6 +9,7 @@ import { MessageService } from '../services/message-service';
 import { ResponseUtils } from '../utils/response-utils';
 import { asyncHandler } from '../middleware/error-middleware';
 import { createSubsegment } from '../config/xray';
+import { getDb } from '../config/database';
 
 const messageService = new MessageService();
 
@@ -56,7 +57,7 @@ export const sendMessage = asyncHandler(
  */
 export const getLinkMetadata = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const { link_id } = req.params;
+    const { link_id } = req.params as Record<string, string>;
 
     const linkService = new (await import('../services/link-service')).LinkService();
     const metadata = await linkService.getLinkMetadata(link_id);
@@ -66,7 +67,7 @@ export const getLinkMetadata = asyncHandler(
 );
 
 /**
- * Health check endpoint
+ * Shallow health check — used by ALB target group (no DB dependency)
  */
 export const healthCheck = asyncHandler(
   async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
@@ -74,5 +75,28 @@ export const healthCheck = asyncHandler(
       status: 'healthy',
       timestamp: new Date().toISOString(),
     });
+  }
+);
+
+/**
+ * Deep health check — tests database connectivity (for monitoring/alerting only)
+ * GET /health/ready
+ */
+export const readinessCheck = asyncHandler(
+  async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    try {
+      await getDb().query('SELECT 1');
+      ResponseUtils.success(res, {
+        status: 'ready',
+        database: 'connected',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      res.status(503).json({
+        status: 'not_ready',
+        database: 'disconnected',
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 );
