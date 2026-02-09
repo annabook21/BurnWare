@@ -97,7 +97,7 @@ export const anonymousReplyRateLimiter = rateLimit({
  */
 export const threadViewRateLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 60, // 60 requests per 5 minutes per thread (supports polling every 5 sec)
+  max: 120, // 120 requests per 5 minutes per thread (supports polling every 3 sec)
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: Request) => {

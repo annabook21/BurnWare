@@ -17,6 +17,7 @@ export const sendMessageSchema = Joi.object({
   // Legacy plaintext (links without public_key)
   message: Joi.string().min(1).max(5000),
   captcha_token: Joi.string().optional(), // WAF CAPTCHA token
+  passphrase: Joi.string().min(1).max(128), // OPSEC passphrase (required for passphrase-gated links)
 }).or('ciphertext', 'message')
   .with('ciphertext', 'sender_public_key')
   .with('sender_public_key', 'ciphertext');

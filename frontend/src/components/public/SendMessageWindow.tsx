@@ -16,6 +16,7 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { encrypt, decrypt } from '../../utils/e2ee';
 import { saveSenderKey, getSenderKey, addSentMessage, saveAccessToken, getAccessToken } from '../../utils/key-store';
+import { useAppSyncEvents } from '../../hooks/useAppSyncEvents';
 import type { Message } from '../../types';
 
 interface SendMessageWindowProps {
@@ -169,7 +170,7 @@ const BookmarkBar = styled.div`
 const MAX_LENGTH = 5000;
 const WINDOW_WIDTH = 520;
 const WINDOW_HEIGHT = 480;
-const POLL_INTERVAL_MS = 10000;
+const POLL_INTERVAL_MS = 30000; // Fallback only; AppSync Events provides instant updates
 
 function useCenteredPosition(width: number, height: number) {
   const [pos, setPos] = useState(() => ({
@@ -195,7 +196,8 @@ const formatTime = (dateString: string): string => {
 
 export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) => {
   const [message, setMessage] = useState('');
-  const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string; public_key?: string } | null>(null);
+  const [linkInfo, setLinkInfo] = useState<{ display_name: string; description?: string; public_key?: string; opsec?: { passphrase_required: boolean } } | null>(null);
+  const [passphrase, setPassphrase] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sentThreadId, setSentThreadId] = useState<string | null>(null);
@@ -285,6 +287,12 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     return () => { stopped = true; clearTimeout(timeoutId); controller.abort(); };
   }, [fetchMessages, sentThreadId]);
 
+  // Real-time: subscribe to thread channel for instant updates
+  useAppSyncEvents(
+    sentThreadId ? `messages/thread/${sentThreadId}` : null,
+    useCallback(() => { fetchMessages(); }, [fetchMessages])
+  );
+
   // First message send
   const handleFirstSend = async () => {
     if (!message.trim() || sending) return;
@@ -295,7 +303,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
       if (linkInfo?.public_key) {
         const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
           await encrypt(message.trim(), linkInfo.public_key);
-        body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64 };
+        body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64, ...(passphrase && { passphrase }) };
         res = await apiClient.post(endpoints.public.send(), body);
         const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
         if (threadId) {
@@ -303,7 +311,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
           setSentThreadId(threadId);
         }
       } else {
-        body = { recipient_link_id: linkId, message: message.trim() };
+        body = { recipient_link_id: linkId, message: message.trim(), ...(passphrase && { passphrase }) };
         res = await apiClient.post(endpoints.public.send(), body);
         const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
         if (threadId) {
@@ -322,7 +330,14 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
       setMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
-      toast.error('Failed to send message. Please try again.');
+      const errCode = axios.isAxiosError(error) && error.response?.data?.error?.code;
+      if (errCode === 'VALIDATION_ERROR' && linkInfo?.opsec?.passphrase_required) {
+        toast.error('Passphrase is required to send a message.');
+      } else if (errCode === 'AUTHORIZATION_ERROR') {
+        toast.error('Incorrect passphrase. Please try again.');
+      } else {
+        toast.error('Failed to send message. Please try again.');
+      }
     } finally {
       setSending(false);
     }
@@ -461,8 +476,28 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
               ? 'End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
               : 'Your identity is anonymous — no account or IP stored.'}
           </PrivacyNote>
+          {linkInfo?.opsec?.passphrase_required && (
+            <div style={{ marginTop: aimTheme.spacing.sm }}>
+              <Label>Passphrase Required:</Label>
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder="Enter link passphrase"
+                style={{
+                  width: '100%',
+                  border: aimTheme.borders.inset,
+                  padding: aimTheme.spacing.sm,
+                  fontFamily: aimTheme.fonts.primary,
+                  fontSize: aimTheme.fonts.size.normal,
+                  background: aimTheme.colors.white,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          )}
           <ButtonBar>
-            <AIMButton onClick={handleFirstSend} disabled={!message.trim() || sending}>
+            <AIMButton onClick={handleFirstSend} disabled={!message.trim() || sending || (!!linkInfo?.opsec?.passphrase_required && !passphrase)}>
               {sending ? 'Sending...' : 'Send Message'}
             </AIMButton>
           </ButtonBar>

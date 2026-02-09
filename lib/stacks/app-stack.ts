@@ -53,6 +53,10 @@ export interface AppStackProps extends StackProps {
   appVersion?: string;
   /** Deploy backend artifact via CDK (default true when bucket provided). Set false to skip if app has build issues. */
   deployBackendArtifact?: boolean;
+  /** AppSync Events HTTP domain (for real-time notifications) */
+  appSyncHttpDns?: string;
+  /** AppSync Events API key (for publishing events) */
+  appSyncApiKey?: string;
 }
 
 export class AppStack extends Stack {
@@ -87,6 +91,8 @@ export class AppStack extends Stack {
       deploymentBucket,
       appVersion = '1.0.0',
       deployBackendArtifact = true,
+      appSyncHttpDns,
+      appSyncApiKey,
     } = props;
 
     // Import existing log group (created by Observability stack)
@@ -185,6 +191,8 @@ export class AppStack extends Stack {
             environment,
             cognitoUserPoolId,
             cognitoClientId,
+            appSyncHttpDns,
+            appSyncApiKey,
           }
         : undefined;
 

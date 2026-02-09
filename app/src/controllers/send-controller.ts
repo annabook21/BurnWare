@@ -38,11 +38,12 @@ export const sendMessage = asyncHandler(
     const subsegment = createSubsegment('send_message');
 
     try {
-      const { recipient_link_id, ciphertext, sender_public_key, message } = req.validated as {
+      const { recipient_link_id, ciphertext, sender_public_key, message, passphrase } = req.validated as {
         recipient_link_id: string;
         ciphertext?: string;
         sender_public_key?: string;
         message?: string;
+        passphrase?: string;
       };
 
       const result = await messageService.sendAnonymousMessage({
@@ -50,6 +51,7 @@ export const sendMessage = asyncHandler(
         ciphertext,
         sender_public_key,
         message,
+        passphrase,
       });
 
       subsegment?.close();

@@ -13,6 +13,7 @@ import { ThreadService } from './thread-service';
 import { ValidationError, NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
+import { AppSyncPublisher } from './appsync-publisher';
 
 export interface SendMessageInput {
   recipient_link_id: string;
@@ -21,6 +22,8 @@ export interface SendMessageInput {
   sender_public_key?: string;
   // Legacy plaintext (links without public_key)
   message?: string;
+  // OPSEC passphrase (required for passphrase-gated links)
+  passphrase?: string;
 }
 
 export class MessageService {
@@ -28,12 +31,14 @@ export class MessageService {
   private threadModel: ThreadModel;
   private linkModel: LinkModel;
   private threadService: ThreadService;
+  private publisher: AppSyncPublisher;
 
   constructor() {
     this.messageModel = new MessageModel();
     this.threadModel = new ThreadModel();
     this.linkModel = new LinkModel();
     this.threadService = new ThreadService();
+    this.publisher = new AppSyncPublisher();
   }
 
   /**
@@ -66,6 +71,19 @@ export class MessageService {
       throw new ValidationError('Link is no longer active');
     }
 
+    // OPSEC: verify passphrase before allowing send
+    if (link.opsec_passphrase_hash) {
+      if (!input.passphrase) {
+        throw new ValidationError('This link requires a passphrase');
+      }
+      const isValid = await CryptoUtils.pbkdf2Verify(
+        input.passphrase, link.opsec_passphrase_hash, link.opsec_passphrase_salt!
+      );
+      if (!isValid) {
+        throw new AuthorizationError('Incorrect passphrase');
+      }
+    }
+
     // Create new thread (OPSEC settings applied inside createThread)
     const { thread, accessToken } = await this.threadService.createThread(recipient_link_id, sender_public_key);
 
@@ -89,6 +107,9 @@ export class MessageService {
       link_id: recipient_link_id,
       message_id: newMessage.message_id,
     });
+
+    // Fire-and-forget: notify subscribers via AppSync Events
+    this.publisher.publishNewMessage(thread.thread_id, recipient_link_id, 'anonymous').catch(() => {});
 
     return {
       thread_id: thread.thread_id,
@@ -189,6 +210,9 @@ export class MessageService {
 
     LoggerUtils.logMetric('message_sent', 1, 'count');
     LoggerUtils.logMetric('owner_reply_sent', 1, 'count');
+
+    // Fire-and-forget: notify subscribers via AppSync Events
+    this.publisher.publishNewMessage(threadId, link.link_id, 'owner').catch(() => {});
 
     return message;
   }

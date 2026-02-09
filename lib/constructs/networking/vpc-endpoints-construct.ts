@@ -26,6 +26,7 @@ export class VpcEndpointsConstruct extends Construct {
   public readonly codeDeployEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly codeDeployCommandsEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly cognitoIdpEndpoint: ec2.IInterfaceVpcEndpoint;
+  public readonly appSyncEndpoint: ec2.IInterfaceVpcEndpoint;
 
   constructor(scope: Construct, id: string, props: VpcEndpointsConstructProps) {
     super(scope, id);
@@ -133,6 +134,15 @@ export class VpcEndpointsConstruct extends Construct {
         availabilityZones: ['us-east-1b', 'us-east-1c'],
       },
     });
+
+    // AppSync Events Endpoint (required for publishing events from NAT-free VPC)
+    this.appSyncEndpoint = this.createInterfaceEndpoint(
+      'AppSync',
+      vpc,
+      new ec2.InterfaceVpcEndpointService('com.amazonaws.us-east-1.appsync-api'),
+      endpointSecurityGroup,
+      environment
+    );
   }
 
   /**
@@ -171,6 +181,7 @@ export class VpcEndpointsConstruct extends Construct {
       codeDeploy: this.codeDeployEndpoint.vpcEndpointId,
       codeDeployCommands: this.codeDeployCommandsEndpoint.vpcEndpointId,
       cognitoIdp: this.cognitoIdpEndpoint.vpcEndpointId,
+      appSync: this.appSyncEndpoint.vpcEndpointId,
     };
   }
 }

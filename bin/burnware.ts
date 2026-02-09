@@ -14,6 +14,7 @@ import { WafStack } from '../lib/stacks/waf-stack';
 import { FrontendStack } from '../lib/stacks/frontend-stack';
 import { DnsStack } from '../lib/stacks/dns-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
+import { AppSyncStack } from '../lib/stacks/appsync-stack';
 import { devConfig } from '../lib/config/environments/dev';
 import { prodConfig } from '../lib/config/environments/prod';
 
@@ -70,6 +71,14 @@ const wafStack = new WafStack(app, `BurnWare-WAF-${environmentName}`, {
   description: 'WAF WebACL with rate limiting and CAPTCHA',
 });
 
+// AppSync Events Stack (real-time WebSocket pub/sub)
+const appSyncStack = new AppSyncStack(app, `BurnWare-AppSync-${environmentName}`, {
+  env: config.env,
+  environment: environmentName,
+  description: 'AppSync Events API for real-time messaging',
+});
+appSyncStack.addDependency(networkStack);
+
 // App Stack
 const appStack = new AppStack(app, `BurnWare-App-${environmentName}`, {
   env: config.env,
@@ -92,11 +101,14 @@ const appStack = new AppStack(app, `BurnWare-App-${environmentName}`, {
   dbPort: dataStack.dbPort,
   deploymentBucket: dataStack.deploymentBucket,
   deployBackendArtifact: app.node.tryGetContext('deployBackend') !== 'false',
+  appSyncHttpDns: appSyncStack.httpDns,
+  appSyncApiKey: appSyncStack.apiKey,
   description: 'ALB, Auto Scaling Group, CodeDeploy',
 });
 appStack.addDependency(networkStack);
 appStack.addDependency(authStack);
 appStack.addDependency(dataStack);
+appStack.addDependency(appSyncStack);
 
 // Frontend Stack (depends on Auth + App for Cognito and API URL)
 const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentName}`, {

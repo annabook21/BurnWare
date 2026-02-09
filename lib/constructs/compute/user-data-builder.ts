@@ -22,6 +22,10 @@ export interface UserDataConfig {
   cognitoUserPoolId: string;
   /** Cognito App Client ID (for JWT verification). */
   cognitoClientId: string;
+  /** AppSync Events HTTP domain (for real-time notifications). */
+  appSyncHttpDns?: string;
+  /** AppSync Events API key (for publishing events). */
+  appSyncApiKey?: string;
 }
 
 export class UserDataBuilder {
@@ -103,6 +107,8 @@ export class UserDataBuilder {
       'ALLOWED_ORIGINS=*',
       `COGNITO_USER_POOL_ID=${config.cognitoUserPoolId}`,
       `COGNITO_CLIENT_ID=${config.cognitoClientId}`,
+      ...(config.appSyncHttpDns ? [`APPSYNC_HTTP_DOMAIN=${config.appSyncHttpDns}`] : []),
+      ...(config.appSyncApiKey ? [`APPSYNC_API_KEY=${config.appSyncApiKey}`] : []),
       'ENVEOF',
       '',
     );

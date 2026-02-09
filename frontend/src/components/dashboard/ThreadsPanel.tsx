@@ -14,6 +14,7 @@ import { useAIMSounds } from '../../hooks/useAIMSounds';
 import { decrypt, encrypt } from '../../utils/e2ee';
 import { getLinkKey, getReplyPlaintexts, saveReplyPlaintext } from '../../utils/key-store';
 import { KeyRecoveryDialog } from './KeyRecoveryDialog';
+import { useAppSyncEvents } from '../../hooks/useAppSyncEvents';
 import type { Message } from '../../types';
 
 interface ThreadsPanelProps {
@@ -35,7 +36,7 @@ interface ThreadData {
   messages: Message[];
 }
 
-const POLL_INTERVAL_MS = 10000; // 10 seconds — fast updates for open IM windows
+const POLL_INTERVAL_MS = 30000; // Fallback only; AppSync Events provides instant updates
 
 export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   linkId,
@@ -162,6 +163,12 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     };
   }, [fetchThreads]);
 
+  // Real-time: subscribe to link channel for instant updates
+  useAppSyncEvents(
+    `messages/link/${linkId}`,
+    useCallback(() => { fetchThreads(); }, [fetchThreads])
+  );
+
   // In classic AIM, closing IM windows is explicit (user clicks X).
   // No auto-close on empty threads.
 
@@ -216,6 +223,11 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     }
   };
 
+  const handleRecoveryComplete = useCallback(() => {
+    setNeedsRecovery(false);
+    fetchThreads();
+  }, [fetchThreads]);
+
   if (loading) {
     return null;
   }
@@ -238,11 +250,6 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
       />
     );
   }
-
-  const handleRecoveryComplete = useCallback(() => {
-    setNeedsRecovery(false);
-    fetchThreads();
-  }, [fetchThreads]);
 
   return (
     <>

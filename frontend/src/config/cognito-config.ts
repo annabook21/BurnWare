@@ -25,6 +25,16 @@ Amplify.configure({
       userPoolClientId: awsConfig.cognito.userPoolClientId,
     },
   },
+  ...(awsConfig.appSync.httpDns && {
+    API: {
+      Events: {
+        endpoint: `https://${awsConfig.appSync.httpDns}/event`,
+        region: awsConfig.region,
+        defaultAuthMode: 'apiKey' as const,
+        apiKey: awsConfig.appSync.apiKey,
+      },
+    },
+  }),
 });
 
 /**
