@@ -150,11 +150,17 @@ function ensureConnection(): void {
 
       case 'data': {
         const sub = subscriptions.get(msg.id);
-        if (sub && msg.event) {
-          try {
-            sub.callback(JSON.parse(msg.event));
-          } catch {
-            sub.callback(msg.event);
+        if (!sub) break;
+
+        // AppSync Events sends event as a JSON string or array of JSON strings
+        const events = Array.isArray(msg.event) ? msg.event : [msg.event];
+        for (const e of events) {
+          if (e == null) continue;
+          if (typeof e === 'string') {
+            try { sub.callback(JSON.parse(e)); }
+            catch { sub.callback(e); }
+          } else {
+            sub.callback(e);
           }
         }
         break;
