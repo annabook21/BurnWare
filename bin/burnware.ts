@@ -103,6 +103,7 @@ const appStack = new AppStack(app, `BurnWare-App-${environmentName}`, {
   deployBackendArtifact: app.node.tryGetContext('deployBackend') !== 'false',
   appSyncHttpDns: appSyncStack.httpDns,
   appSyncApiKey: appSyncStack.apiKey,
+  appSyncPublishFnArn: appSyncStack.publishFn.functionArn,
   description: 'ALB, Auto Scaling Group, CodeDeploy',
 });
 appStack.addDependency(networkStack);

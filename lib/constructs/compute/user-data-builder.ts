@@ -26,6 +26,8 @@ export interface UserDataConfig {
   appSyncHttpDns?: string;
   /** AppSync Events API key (for publishing events). */
   appSyncApiKey?: string;
+  /** Lambda ARN for publishing AppSync Events from NAT-free VPC. */
+  appSyncPublishFnArn?: string;
 }
 
 export class UserDataBuilder {
@@ -109,6 +111,7 @@ export class UserDataBuilder {
       `COGNITO_CLIENT_ID=${config.cognitoClientId}`,
       ...(config.appSyncHttpDns ? [`APPSYNC_HTTP_DOMAIN=${config.appSyncHttpDns}`] : []),
       ...(config.appSyncApiKey ? [`APPSYNC_API_KEY=${config.appSyncApiKey}`] : []),
+      ...(config.appSyncPublishFnArn ? [`APPSYNC_PUBLISH_FN_ARN=${config.appSyncPublishFnArn}`] : []),
       'ENVEOF',
       '',
     );

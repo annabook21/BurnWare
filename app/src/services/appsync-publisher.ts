@@ -1,10 +1,14 @@
 /**
  * AppSync Events Publisher
- * Publishes real-time notification events via AppSync Events HTTP API.
+ * Publishes real-time notification events via a Lambda proxy.
+ * The Lambda runs outside the VPC and calls AppSync Events HTTP API,
+ * because the appsync-api VPC endpoint only supports private GraphQL APIs
+ * (Events APIs are always public and unreachable from NAT-free VPCs).
  * Events carry only metadata (thread_id, link_id, sender_type) — never message content.
- * Gracefully no-ops when APPSYNC_HTTP_DOMAIN is not configured.
+ * Gracefully no-ops when APPSYNC_PUBLISH_FN_ARN is not configured.
  */
 
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { logger } from '../config/logger';
 
 interface MessageEvent {
@@ -17,22 +21,21 @@ interface MessageEvent {
 let hasLoggedDisabled = false;
 
 export class AppSyncPublisher {
-  private httpDomain: string | undefined;
-  private apiKey: string | undefined;
+  private lambdaClient: LambdaClient | undefined;
+  private publishFnArn: string | undefined;
 
   constructor() {
-    this.httpDomain = process.env.APPSYNC_HTTP_DOMAIN;
-    this.apiKey = process.env.APPSYNC_API_KEY;
-    if (!this.httpDomain || !this.apiKey) {
-      if (!hasLoggedDisabled) {
-        hasLoggedDisabled = true;
-        logger.warn('AppSync Events disabled: APPSYNC_HTTP_DOMAIN or APPSYNC_API_KEY not set. Real-time notifications will not be sent.');
-      }
+    this.publishFnArn = process.env.APPSYNC_PUBLISH_FN_ARN;
+    if (this.publishFnArn) {
+      this.lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
+    } else if (!hasLoggedDisabled) {
+      hasLoggedDisabled = true;
+      logger.warn('AppSync Events disabled: APPSYNC_PUBLISH_FN_ARN not set. Real-time notifications will not be sent.');
     }
   }
 
   private get enabled(): boolean {
-    return !!(this.httpDomain && this.apiKey);
+    return !!(this.publishFnArn && this.lambdaClient);
   }
 
   /** Replace underscores with dashes for AppSync Events channel compatibility.
@@ -64,20 +67,16 @@ export class AppSyncPublisher {
 
   private async publish(channel: string, eventPayload: string): Promise<void> {
     try {
-      const res = await fetch(`https://${this.httpDomain}/event`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': this.apiKey!,
-        },
-        body: JSON.stringify({
-          channel,
-          events: [eventPayload],
-        }),
+      const command = new InvokeCommand({
+        FunctionName: this.publishFnArn,
+        InvocationType: 'RequestResponse',
+        Payload: Buffer.from(JSON.stringify({ channel, events: [eventPayload] })),
       });
+      const result = await this.lambdaClient!.send(command);
 
-      if (!res.ok) {
-        logger.warn('AppSync publish failed', { channel, status: res.status });
+      if (result.FunctionError) {
+        const errorPayload = result.Payload ? Buffer.from(result.Payload).toString() : 'unknown';
+        logger.warn('AppSync publish Lambda error', { channel, error: errorPayload });
       } else {
         logger.debug('AppSync publish ok', { channel });
       }

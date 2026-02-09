@@ -14,6 +14,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { DockerImage } from 'aws-cdk-lib';
 import { IamRolesConstruct } from '../constructs/security/iam-roles-construct';
@@ -57,6 +58,8 @@ export interface AppStackProps extends StackProps {
   appSyncHttpDns?: string;
   /** AppSync Events API key (for publishing events) */
   appSyncApiKey?: string;
+  /** Lambda ARN for publishing AppSync Events from NAT-free VPC */
+  appSyncPublishFnArn?: string;
 }
 
 export class AppStack extends Stack {
@@ -93,6 +96,7 @@ export class AppStack extends Stack {
       deployBackendArtifact = true,
       appSyncHttpDns,
       appSyncApiKey,
+      appSyncPublishFnArn,
     } = props;
 
     // Import existing log group (created by Observability stack)
@@ -110,6 +114,14 @@ export class AppStack extends Stack {
     });
 
     this.instanceRoleArn = iamRoles.getInstanceRoleArn();
+
+    // Grant EC2 permission to invoke AppSync publish Lambda
+    if (appSyncPublishFnArn) {
+      iamRoles.ec2InstanceRole.addToPolicy(new iam.PolicyStatement({
+        actions: ['lambda:InvokeFunction'],
+        resources: [appSyncPublishFnArn],
+      }));
+    }
 
     // Create Application Load Balancer
     // https://docs.aws.amazon.com/elasticloadbalancing/latest/application/https-listener-certificates.html
@@ -193,6 +205,7 @@ export class AppStack extends Stack {
             cognitoClientId,
             appSyncHttpDns,
             appSyncApiKey,
+            appSyncPublishFnArn,
           }
         : undefined;
 

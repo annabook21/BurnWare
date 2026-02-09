@@ -26,7 +26,7 @@ export class VpcEndpointsConstruct extends Construct {
   public readonly codeDeployEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly codeDeployCommandsEndpoint: ec2.IInterfaceVpcEndpoint;
   public readonly cognitoIdpEndpoint: ec2.IInterfaceVpcEndpoint;
-  public readonly appSyncEndpoint: ec2.IInterfaceVpcEndpoint;
+  public readonly lambdaEndpoint: ec2.IInterfaceVpcEndpoint;
 
   constructor(scope: Construct, id: string, props: VpcEndpointsConstructProps) {
     super(scope, id);
@@ -135,11 +135,13 @@ export class VpcEndpointsConstruct extends Construct {
       },
     });
 
-    // AppSync Events Endpoint (required for publishing events from NAT-free VPC)
-    this.appSyncEndpoint = this.createInterfaceEndpoint(
-      'AppSync',
+    // Lambda Endpoint (EC2 invokes a Lambda proxy to publish AppSync Events)
+    // The appsync-api VPC endpoint only supports private GraphQL APIs;
+    // Events APIs are always public, so we use Lambda as a publish proxy.
+    this.lambdaEndpoint = this.createInterfaceEndpoint(
+      'Lambda',
       vpc,
-      new ec2.InterfaceVpcEndpointService('com.amazonaws.us-east-1.appsync-api'),
+      ec2.InterfaceVpcEndpointAwsService.LAMBDA,
       endpointSecurityGroup,
       environment
     );
@@ -181,7 +183,7 @@ export class VpcEndpointsConstruct extends Construct {
       codeDeploy: this.codeDeployEndpoint.vpcEndpointId,
       codeDeployCommands: this.codeDeployCommandsEndpoint.vpcEndpointId,
       cognitoIdp: this.cognitoIdpEndpoint.vpcEndpointId,
-      appSync: this.appSyncEndpoint.vpcEndpointId,
+      lambda: this.lambdaEndpoint.vpcEndpointId,
     };
   }
 }

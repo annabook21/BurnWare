@@ -4,10 +4,11 @@
  * File size: ~80 lines
  */
 
-import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as appsync from 'aws-cdk-lib/aws-appsync';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { TagUtils } from '../utils/tags';
 import { NamingUtils } from '../utils/naming';
 
@@ -21,6 +22,7 @@ export class AppSyncStack extends Stack {
   public readonly apiKey: string;
   public readonly apiArn: string;
   public readonly eventApi: appsync.EventApi;
+  public readonly publishFn: lambda.Function;
 
   constructor(scope: Construct, id: string, props: AppSyncStackProps) {
     super(scope, id, props);
@@ -76,6 +78,60 @@ export class AppSyncStack extends Stack {
     new CfnOutput(this, 'ApiArn', {
       value: this.apiArn,
       description: 'AppSync Events API ARN',
+    });
+
+    // Lambda proxy for publishing events from NAT-free VPC.
+    // The appsync-api VPC endpoint only supports private GraphQL APIs;
+    // Events APIs are always public, so EC2 invokes this Lambda (via
+    // Lambda VPC endpoint) which publishes to AppSync Events over the internet.
+    this.publishFn = new lambda.Function(this, 'PublishFn', {
+      functionName: NamingUtils.getResourceName('appsync-publish', environment),
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      timeout: Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        APPSYNC_HTTP_DOMAIN: this.httpDns,
+        APPSYNC_API_KEY: this.apiKey,
+      },
+      code: lambda.Code.fromInline(`
+const https = require('https');
+exports.handler = async (event) => {
+  const { channel, events } = event;
+  const body = JSON.stringify({ channel, events });
+  const options = {
+    hostname: process.env.APPSYNC_HTTP_DOMAIN,
+    path: '/event',
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': process.env.APPSYNC_API_KEY,
+      'content-length': Buffer.byteLength(body),
+    },
+  };
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve({ statusCode: res.statusCode, body: data });
+        } else {
+          reject(new Error('AppSync publish failed: ' + res.statusCode + ' ' + data));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+};
+      `.trim()),
+    });
+
+    new CfnOutput(this, 'PublishFnArn', {
+      value: this.publishFn.functionArn,
+      description: 'Lambda ARN for publishing AppSync Events from NAT-free VPC',
     });
   }
 
