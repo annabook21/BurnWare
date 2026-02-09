@@ -20,6 +20,10 @@ export interface EnvironmentConfig {
   enableEnhancedMonitoring: boolean;
   logRetentionDays: number;
   alarmEmail: string;
+  /** Override Cognito User Pool ID (e.g. share dev pool in prod) */
+  cognitoUserPoolId?: string;
+  /** Override Cognito App Client ID (e.g. share dev pool in prod) */
+  cognitoClientId?: string;
 }
 
 export const devConfig: EnvironmentConfig = {

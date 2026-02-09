@@ -23,4 +23,7 @@ export const prodConfig: EnvironmentConfig = {
   enableEnhancedMonitoring: false,
   logRetentionDays: 7,
   alarmEmail: 'ops-alerts@example.com',
+  // Share dev Cognito pool — single user base, frontend .env already has these values
+  cognitoUserPoolId: 'us-east-1_uLCQ3TTxk',
+  cognitoClientId: '7jsa7epi6jnmshvfnas34qsp7o',
 };
