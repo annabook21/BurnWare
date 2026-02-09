@@ -289,7 +289,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
 
   // Real-time: subscribe to thread channel for instant updates
   useAppSyncEvents(
-    sentThreadId ? `messages/thread/${sentThreadId}` : null,
+    sentThreadId ? `/messages/thread/${sentThreadId}` : null,
     useCallback(() => { fetchMessages(); }, [fetchMessages])
   );
 

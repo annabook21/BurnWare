@@ -171,6 +171,9 @@ export class MessageService {
     LoggerUtils.logMetric('message_sent', 1, 'count');
     LoggerUtils.logMetric('anonymous_reply_sent', 1, 'count');
 
+    // Fire-and-forget: notify subscribers via AppSync Events
+    this.publisher.publishNewMessage(threadId, link.link_id, 'anonymous').catch(() => {});
+
     return message;
   }
 

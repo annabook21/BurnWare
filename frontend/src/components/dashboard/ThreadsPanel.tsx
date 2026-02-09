@@ -165,7 +165,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
   // Real-time: subscribe to link channel for instant updates
   useAppSyncEvents(
-    `messages/link/${linkId}`,
+    `/messages/link/${linkId}`,
     useCallback(() => { fetchThreads(); }, [fetchThreads])
   );
 

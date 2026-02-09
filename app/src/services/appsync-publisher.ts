@@ -43,8 +43,8 @@ export class AppSyncPublisher {
     //   thread/{thread_id} — anonymous sender subscribes
     //   link/{link_id}     — dashboard owner subscribes
     await Promise.allSettled([
-      this.publish(`messages/thread/${threadId}`, payload),
-      this.publish(`messages/link/${linkId}`, payload),
+      this.publish(`/messages/thread/${threadId}`, payload),
+      this.publish(`/messages/link/${linkId}`, payload),
     ]);
   }
 

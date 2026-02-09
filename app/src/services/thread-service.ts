@@ -159,12 +159,16 @@ export class ThreadService {
       return;
     }
 
-    // Atomic: delete messages + mark burned in single transaction
+    // Atomic: delete messages + mark burned + decrement link counter in single transaction
     const client = await getDb().connect();
     try {
       await client.query('BEGIN');
       await client.query('DELETE FROM messages WHERE thread_id = $1', [threadId]);
-      await client.query('UPDATE threads SET burned = TRUE WHERE thread_id = $1', [threadId]);
+      await client.query(
+        'UPDATE links SET message_count = GREATEST(message_count - $1, 0) WHERE link_id = $2',
+        [thread.message_count, thread.link_id]
+      );
+      await client.query('UPDATE threads SET burned = TRUE, message_count = 0 WHERE thread_id = $1', [threadId]);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
