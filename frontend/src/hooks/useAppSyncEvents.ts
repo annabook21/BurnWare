@@ -18,6 +18,7 @@ let sharedSocket: WebSocket | null = null;
 let socketReady = false;
 let socketConnecting = false;
 let keepAliveTimeoutId: ReturnType<typeof setTimeout> | undefined;
+let connectionTimeoutMs = 300_000; // default 5 min, updated from connection_ack
 let reconnectAttempt = 0;
 
 // Listeners keyed by subscription id
@@ -30,12 +31,23 @@ function getWsUrl(): string {
   return `wss://${realtimeDns}/event/realtime`;
 }
 
+/** AWS date string in compact ISO format (required for API key auth) */
+function getAmzDateString(): string {
+  return new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+}
+
 function getAuthHeaders(): Record<string, string> {
   const { httpDns, apiKey } = awsConfig.appSync;
   return {
     host: httpDns,
+    'x-amz-date': getAmzDateString(),
     'x-api-key': apiKey,
   };
+}
+
+/** Normalize channel to always have a leading slash */
+function normalizeChannel(channel: string): string {
+  return channel.startsWith('/') ? channel : `/${channel}`;
 }
 
 function resetKeepAlive(timeoutMs: number): void {
@@ -51,12 +63,14 @@ function sendSubscribe(subId: string, channel: string): void {
     pendingSubscribes.add(subId);
     return;
   }
-  sharedSocket.send(JSON.stringify({
+  const normalized = normalizeChannel(channel);
+  const msg = {
     type: 'subscribe',
     id: subId,
-    channel,
+    channel: normalized,
     authorization: getAuthHeaders(),
-  }));
+  };
+  sharedSocket.send(JSON.stringify(msg));
 }
 
 function sendUnsubscribe(subId: string): void {
@@ -74,7 +88,8 @@ function flushPending(): void {
 }
 
 function scheduleReconnect(): void {
-  const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
+  const jitter = Math.random() * RECONNECT_BASE_MS;
+  const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS) + jitter;
   reconnectAttempt++;
   setTimeout(() => {
     if (subscriptions.size > 0) {
@@ -89,12 +104,16 @@ function ensureConnection(): void {
   if (sharedSocket?.readyState === WebSocket.OPEN || socketConnecting) return;
 
   const { realtimeDns, apiKey, httpDns } = awsConfig.appSync;
-  if (!realtimeDns || !apiKey) return;
+  if (!realtimeDns || !apiKey || !httpDns) return;
 
   socketConnecting = true;
   socketReady = false;
 
-  const authHeader = JSON.stringify({ host: httpDns, 'x-api-key': apiKey });
+  const authHeader = JSON.stringify({
+    host: httpDns,
+    'x-amz-date': getAmzDateString(),
+    'x-api-key': apiKey,
+  });
   const encoded = btoa(authHeader)
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -113,12 +132,14 @@ function ensureConnection(): void {
         socketReady = true;
         socketConnecting = false;
         reconnectAttempt = 0;
-        if (msg.connectionTimeoutMs) resetKeepAlive(msg.connectionTimeoutMs);
+        connectionTimeoutMs = msg.connectionTimeoutMs || connectionTimeoutMs;
+        resetKeepAlive(connectionTimeoutMs);
         flushPending();
         break;
 
       case 'ka':
-        if (msg.connectionTimeoutMs) resetKeepAlive(msg.connectionTimeoutMs);
+        // Reset keepalive timer on every heartbeat using stored timeout
+        resetKeepAlive(connectionTimeoutMs);
         break;
 
       case 'data': {
@@ -137,10 +158,12 @@ function ensureConnection(): void {
         pendingSubscribes.delete(msg.id);
         break;
 
-      case 'subscribe_error':
-        console.warn('AppSync subscribe error:', msg.errors);
+      case 'subscribe_error': {
+        const failedSub = subscriptions.get(msg.id);
+        console.warn('AppSync subscribe error:', msg.errors, 'channel:', failedSub?.channel);
         pendingSubscribes.delete(msg.id);
         break;
+      }
 
       case 'connection_error':
         console.warn('AppSync connection error:', msg.errors);
