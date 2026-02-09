@@ -32,6 +32,10 @@ CREATE TABLE links (
   message_count INTEGER NOT NULL DEFAULT 0,
   qr_code_url VARCHAR(500),  -- S3 signed URL or path
   public_key TEXT,  -- ECDH P-256 public key (base64 raw), required for E2EE
+  opsec_mode BOOLEAN NOT NULL DEFAULT FALSE,
+  opsec_access VARCHAR(20),  -- 'device_bound' | 'single_use' (NULL when opsec_mode = FALSE)
+  opsec_passphrase_hash VARCHAR(256),  -- PBKDF2 hash (hex), NULL if no passphrase
+  opsec_passphrase_salt VARCHAR(64),   -- PBKDF2 salt (hex)
   CONSTRAINT chk_display_name_length CHECK (char_length(display_name) >= 1),
   CONSTRAINT chk_link_id_format CHECK (link_id ~ '^[A-Za-z0-9_-]+$')
 );
@@ -51,12 +55,17 @@ CREATE TABLE threads (
   message_count INTEGER NOT NULL DEFAULT 0,
   sender_anonymous_id VARCHAR(64) NOT NULL,  -- Random per-thread identifier (not derived from sender data)
   sender_public_key TEXT,  -- Sender's ECDH P-256 ephemeral public key (base64 raw), for E2EE replies
+  expires_at TIMESTAMP,            -- OPSEC: 24h from creation (NULL for non-OPSEC threads)
+  access_token_hash VARCHAR(64),   -- OPSEC: SHA-256 hash of access token (for device-bound/single-use)
+  passphrase_hash VARCHAR(256),    -- OPSEC: PBKDF2 hash copied from link (for passphrase-protected threads)
+  passphrase_salt VARCHAR(64),     -- OPSEC: PBKDF2 salt copied from link
   CONSTRAINT chk_sender_id_length CHECK (char_length(sender_anonymous_id) >= 8)
 );
 
 CREATE INDEX idx_threads_link_id ON threads(link_id);
 CREATE INDEX idx_threads_created_at ON threads(created_at);
 CREATE INDEX idx_threads_burned ON threads(burned) WHERE burned = FALSE;
+CREATE INDEX idx_threads_expires_at ON threads(expires_at) WHERE expires_at IS NOT NULL;
 -- Removed: idx_threads_sender index — sender_anonymous_id is random per-thread,
 -- cross-thread sender lookups are intentionally not supported for anonymity.
 

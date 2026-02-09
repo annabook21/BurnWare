@@ -7,6 +7,7 @@
 import { LinkModel, Link, CreateLinkData } from '../models/link-model';
 import { TokenService } from './token-service';
 import { QRCodeService } from './qr-code-service';
+import { CryptoUtils } from '../utils/crypto-utils';
 import { ValidationError, NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
@@ -19,6 +20,9 @@ export interface CreateLinkInput {
   description?: string;
   expires_in_days?: number;
   public_key?: string;
+  opsec_mode?: boolean;
+  opsec_access?: string;
+  opsec_passphrase?: string;
 }
 
 export class LinkService {
@@ -48,6 +52,15 @@ export class LinkService {
       ? TokenService.generateExpirationDate(input.expires_in_days)
       : undefined;
 
+    // Hash OPSEC passphrase if provided (PBKDF2, 600k iterations)
+    let opsecPassphraseHash: string | undefined;
+    let opsecPassphraseSalt: string | undefined;
+    if (input.opsec_mode && input.opsec_passphrase) {
+      const { hash, salt } = await CryptoUtils.pbkdf2Hash(input.opsec_passphrase);
+      opsecPassphraseHash = hash;
+      opsecPassphraseSalt = salt;
+    }
+
     // Create link in database
     const linkData: CreateLinkData = {
       link_id: linkId,
@@ -56,6 +69,10 @@ export class LinkService {
       description: input.description,
       expires_at: expiresAt,
       public_key: input.public_key,
+      opsec_mode: input.opsec_mode,
+      opsec_access: input.opsec_mode ? input.opsec_access : undefined,
+      opsec_passphrase_hash: opsecPassphraseHash,
+      opsec_passphrase_salt: opsecPassphraseSalt,
     };
 
     const link = await this.linkModel.create(linkData);
@@ -185,6 +202,7 @@ export class LinkService {
     description?: string;
     qr_code_url?: string;
     public_key?: string;
+    opsec?: { enabled: boolean; access_mode?: string; passphrase_required: boolean };
   }> {
     const link = await this.getLinkById(linkId);
 
@@ -193,7 +211,43 @@ export class LinkService {
       description: link.description,
       qr_code_url: link.qr_code_url,
       public_key: link.public_key,
+      ...(link.opsec_mode && {
+        opsec: {
+          enabled: true,
+          access_mode: link.opsec_access,
+          passphrase_required: !!link.opsec_passphrase_hash,
+        },
+      }),
     };
+  }
+
+  /**
+   * Upload encrypted key backup for a link
+   */
+  async uploadKeyBackup(
+    linkId: string,
+    userId: string,
+    data: { wrapped_key: string; salt: string; iv: string },
+  ): Promise<void> {
+    const link = await this.linkModel.findById(linkId);
+    if (!link) throw new NotFoundError('Link');
+    if (link.owner_user_id !== userId) throw new AuthorizationError('Not authorized');
+    await this.linkModel.updateKeyBackup(linkId, data.wrapped_key, data.salt, data.iv);
+  }
+
+  /**
+   * Get encrypted key backup for a link
+   */
+  async getKeyBackup(
+    linkId: string,
+    userId: string,
+  ): Promise<{ wrapped_key: string; salt: string; iv: string } | null> {
+    const link = await this.linkModel.findById(linkId);
+    if (!link) throw new NotFoundError('Link');
+    if (link.owner_user_id !== userId) throw new AuthorizationError('Not authorized');
+    const backup = await this.linkModel.getKeyBackup(linkId);
+    if (!backup) return null;
+    return { wrapped_key: backup.wrapped_key, salt: backup.backup_salt, iv: backup.backup_iv };
   }
 
   /**

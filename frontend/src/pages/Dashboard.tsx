@@ -7,12 +7,16 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { LinksPanel } from '../components/dashboard/LinksPanel';
 import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
+import { BackupSetupDialog } from '../components/dashboard/BackupSetupDialog';
 import { WindowManager } from '../components/aim-ui/WindowManager';
 import { SoundManager } from '../components/aim-ui/SoundManager';
 import { useAIMSounds } from '../hooks/useAIMSounds';
 import { useMessagePolling } from '../hooks/useMessagePolling';
 import { aimTheme } from '../theme/aim-theme';
-import { signOut } from '../config/cognito-config';
+import { signOut, getAccessToken } from '../config/cognito-config';
+import apiClient from '../utils/api-client';
+import { endpoints } from '../config/api-endpoints';
+import { getAllLinkKeys } from '../utils/key-store';
 
 const Desktop = styled.div`
   width: 100vw;
@@ -94,6 +98,8 @@ export const Dashboard: React.FC = () => {
   const [soundsMuted, setSoundsMuted] = useState(false);
   const [openLinks, setOpenLinks] = useState<Map<string, OpenLink>>(new Map());
   const [showStartMenu, setShowStartMenu] = useState(false);
+  const [showBackupSetup, setShowBackupSetup] = useState(false);
+  const [unbackedLinkIds, setUnbackedLinkIds] = useState<string[]>([]);
   const [time, setTime] = useState(new Date());
   const { setMuted, playBuddyOut, playYouvGotMail } = useAIMSounds();
   const { links, loading, newMessageLinkIds, acknowledgeLink, refreshLinks } = useMessagePolling();
@@ -103,6 +109,40 @@ export const Dashboard: React.FC = () => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Check if backup setup is needed (once after links load)
+  useEffect(() => {
+    if (loading || links.length === 0) return;
+    if (localStorage.getItem('bw:backup-configured')) return;
+
+    const checkBackup = async () => {
+      try {
+        const localKeys = await getAllLinkKeys();
+        if (localKeys.size === 0) return;
+
+        const token = await getAccessToken();
+        const needsBackup: string[] = [];
+        for (const link of links) {
+          if (!localKeys.has(link.link_id)) continue;
+          try {
+            await apiClient.get(endpoints.dashboard.keyBackup(link.link_id), {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          } catch {
+            needsBackup.push(link.link_id);
+          }
+        }
+        if (needsBackup.length > 0) {
+          setUnbackedLinkIds(needsBackup);
+          setShowBackupSetup(true);
+        }
+      } catch {
+        // Non-critical — don't block dashboard
+      }
+    };
+
+    checkBackup();
+  }, [links, loading]);
 
   React.useEffect(() => {
     setMuted(soundsMuted);
@@ -177,6 +217,17 @@ export const Dashboard: React.FC = () => {
             onLinksChanged={refreshLinks}
             zIndex={100}
           />
+
+          {showBackupSetup && (
+            <BackupSetupDialog
+              linkIds={unbackedLinkIds}
+              onComplete={() => setShowBackupSetup(false)}
+              onClose={() => {
+                setShowBackupSetup(false);
+                localStorage.setItem('bw:backup-configured', 'skipped');
+              }}
+            />
+          )}
 
           {openLinksArray.map((ol, index) => (
             <ThreadsPanel

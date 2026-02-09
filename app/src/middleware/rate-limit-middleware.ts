@@ -105,3 +105,19 @@ export const threadViewRateLimiter = rateLimit({
     return tid ? `thread:${tid}` : 'thread:unknown';
   },
 });
+
+/**
+ * Strict rate limiter for passphrase unlock attempts.
+ * 5 attempts per 15 minutes per thread — prevents brute-force.
+ * Keys on thread_id (never IP) to preserve anonymity.
+ */
+export const unlockRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per 15 minutes per thread
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => {
+    const tid = (req.params as { thread_id?: string })?.thread_id;
+    return tid ? `unlock:${tid}` : 'unlock:unknown';
+  },
+});

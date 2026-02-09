@@ -1,7 +1,7 @@
 /**
  * Token Service
- * Link token generation and validation
- * File size: ~115 lines
+ * Link token generation, validation, and OPSEC unlock nonces
+ * File size: ~85 lines
  */
 
 import { CryptoUtils, getAppSecret } from '../utils/crypto-utils';
@@ -56,5 +56,30 @@ export class TokenService {
       return false; // No expiration
     }
     return new Date() > new Date(expiresAt);
+  }
+
+  /**
+   * Generate HMAC-signed unlock nonce for passphrase sessions (1h default TTL).
+   * Format: "timestamp:hmac" — avoids PBKDF2 on every poll.
+   */
+  static generateUnlockNonce(threadId: string): string {
+    const timestamp = Date.now();
+    const data = `${threadId}:unlock:${timestamp}`;
+    const hmac = CryptoUtils.generateHMAC(data, getAppSecret());
+    return `${timestamp}:${hmac}`;
+  }
+
+  /**
+   * Verify unlock nonce: check HMAC validity and TTL (default 1h)
+   */
+  static verifyUnlockNonce(threadId: string, nonce: string, maxAgeMs: number = 3_600_000): boolean {
+    const colonIdx = nonce.indexOf(':');
+    if (colonIdx === -1) return false;
+    const timestampStr = nonce.substring(0, colonIdx);
+    const hmac = nonce.substring(colonIdx + 1);
+    const timestamp = parseInt(timestampStr, 10);
+    if (Number.isNaN(timestamp) || Date.now() - timestamp > maxAgeMs) return false;
+    const data = `${threadId}:unlock:${timestamp}`;
+    return CryptoUtils.verifyHMAC(data, hmac, getAppSecret());
   }
 }

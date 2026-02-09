@@ -11,7 +11,14 @@ import { WindowFrame } from '../aim-ui/WindowFrame';
 import { aimTheme } from '../../theme/aim-theme';
 
 interface CreateLinkDialogProps {
-  onSave: (data: { display_name: string; description?: string; expires_in_days?: number }) => void;
+  onSave: (data: {
+    display_name: string;
+    description?: string;
+    expires_in_days?: number;
+    opsec_mode?: boolean;
+    opsec_access?: 'device_bound' | 'single_use';
+    opsec_passphrase?: string;
+  }) => void;
   onClose: () => void;
 }
 
@@ -103,14 +110,55 @@ const CreateButton = styled(Button)`
   text-shadow: ${aimTheme.shadows.text};
 `;
 
+const Fieldset = styled.fieldset`
+  border: ${aimTheme.borders.inset};
+  padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
+  margin-bottom: ${aimTheme.spacing.lg};
+`;
+
+const Legend = styled.legend`
+  font-weight: ${aimTheme.fonts.weight.bold};
+  padding: 0 ${aimTheme.spacing.sm};
+`;
+
+const Checkbox = styled.label`
+  display: flex;
+  align-items: center;
+  gap: ${aimTheme.spacing.sm};
+  cursor: pointer;
+  margin-bottom: ${aimTheme.spacing.sm};
+`;
+
+const RadioGroup = styled.div`
+  display: flex;
+  gap: ${aimTheme.spacing.lg};
+  margin: ${aimTheme.spacing.sm} 0;
+`;
+
+const RadioLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: ${aimTheme.fonts.size.small};
+`;
+
 export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onClose }) => {
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [expiresIn, setExpiresIn] = useState<number | undefined>(30);
+  const [opsecMode, setOpsecMode] = useState(false);
+  const [opsecAccess, setOpsecAccess] = useState<'device_bound' | 'single_use'>('device_bound');
+  const [opsecPassphrase, setOpsecPassphrase] = useState('');
+  const [showPassphrase, setShowPassphrase] = useState(false);
 
   const handleCreate = () => {
     if (!displayName.trim()) {
       toast.error('Please enter a display name');
+      return;
+    }
+    if (opsecMode && opsecPassphrase && opsecPassphrase.length < 4) {
+      toast.error('Passphrase must be at least 4 characters');
       return;
     }
 
@@ -118,6 +166,11 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
       display_name: displayName.trim(),
       description: description.trim() || undefined,
       expires_in_days: expiresIn,
+      ...(opsecMode && {
+        opsec_mode: true,
+        opsec_access: opsecAccess,
+        opsec_passphrase: opsecPassphrase || undefined,
+      }),
     });
   };
 
@@ -125,7 +178,7 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
     <WindowFrame
       title="✨ Create New Link"
       width={420}
-      height={400}
+      height={opsecMode ? 540 : 400}
       initialX={150}
       initialY={100}
       zIndex={1001}
@@ -164,6 +217,45 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
             <option value="365">1 year</option>
           </Select>
         </Field>
+
+        <Fieldset>
+          <Legend>OPSEC Mode</Legend>
+          <Checkbox>
+            <input type="checkbox" checked={opsecMode} onChange={(e) => setOpsecMode(e.target.checked)} />
+            Enable OPSEC Mode (24h expiry, access control)
+          </Checkbox>
+          {opsecMode && (
+            <>
+              <RadioGroup>
+                <RadioLabel>
+                  <input type="radio" name="opsec_access" value="device_bound"
+                    checked={opsecAccess === 'device_bound'} onChange={() => setOpsecAccess('device_bound')} />
+                  Device-bound
+                </RadioLabel>
+                <RadioLabel>
+                  <input type="radio" name="opsec_access" value="single_use"
+                    checked={opsecAccess === 'single_use'} onChange={() => setOpsecAccess('single_use')} />
+                  Single-use (session)
+                </RadioLabel>
+              </RadioGroup>
+              <Field>
+                <Label>Passphrase (optional)</Label>
+                <div style={{ display: 'flex', gap: aimTheme.spacing.sm }}>
+                  <Input
+                    type={showPassphrase ? 'text' : 'password'}
+                    value={opsecPassphrase}
+                    onChange={(e) => setOpsecPassphrase(e.target.value.slice(0, 128))}
+                    placeholder="Leave blank for no passphrase"
+                    maxLength={128}
+                  />
+                  <Button type="button" onClick={() => setShowPassphrase(!showPassphrase)} style={{ minWidth: 50 }}>
+                    {showPassphrase ? 'Hide' : 'Show'}
+                  </Button>
+                </div>
+              </Field>
+            </>
+          )}
+        </Fieldset>
 
         <ButtonBar>
           <CreateButton onClick={handleCreate} disabled={!displayName.trim()}>

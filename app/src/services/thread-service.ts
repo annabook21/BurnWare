@@ -25,9 +25,13 @@ export class ThreadService {
   }
 
   /**
-   * Create new thread (when anonymous user sends first message)
+   * Create new thread (when anonymous user sends first message).
+   * For OPSEC links: sets 24h expiry, generates access token, copies passphrase settings.
    */
-  async createThread(linkId: string, senderPublicKey?: string): Promise<Thread> {
+  async createThread(
+    linkId: string,
+    senderPublicKey?: string,
+  ): Promise<{ thread: Thread; accessToken?: string }> {
     // Verify link exists and is active
     const link = await this.linkModel.findById(linkId);
     if (!link) {
@@ -37,18 +41,29 @@ export class ThreadService {
     // Generate random anonymous sender ID (not derived from IP/UA for privacy)
     const anonymousId = CryptoUtils.generateRandomString(8);
 
-    // Create thread (with sender's E2EE public key if provided)
+    // OPSEC: generate access token and set expiry if link has opsec_mode
+    let accessToken: string | undefined;
+    let accessTokenHash: string | undefined;
+    if (link.opsec_mode) {
+      accessToken = CryptoUtils.generateRandomString(32); // 64-char hex
+      accessTokenHash = CryptoUtils.hash(accessToken);
+    }
+
     const threadData: CreateThreadData = {
       link_id: linkId,
       sender_anonymous_id: anonymousId,
       sender_public_key: senderPublicKey,
+      expires_at: link.opsec_mode ? new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined,
+      access_token_hash: accessTokenHash,
+      passphrase_hash: link.opsec_mode ? link.opsec_passphrase_hash : undefined,
+      passphrase_salt: link.opsec_mode ? link.opsec_passphrase_salt : undefined,
     };
 
     const thread = await this.threadModel.create(threadData);
 
     LoggerUtils.logMetric('thread_created', 1, 'count');
 
-    return thread;
+    return { thread, accessToken };
   }
 
   /**

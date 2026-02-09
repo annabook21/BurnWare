@@ -14,6 +14,10 @@ export const createLinkSchema = Joi.object({
   description: Joi.string().max(500).optional().allow('').trim(),
   expires_in_days: Joi.number().integer().min(1).max(365).optional(),
   public_key: Joi.string().min(1).max(500).required(),
+  opsec_mode: Joi.boolean().optional().default(false),
+  opsec_access: Joi.string().valid('device_bound', 'single_use')
+    .when('opsec_mode', { is: true, then: Joi.required(), otherwise: Joi.optional() }),
+  opsec_passphrase: Joi.string().min(4).max(128).optional(),
 });
 
 /**
@@ -38,4 +42,13 @@ export const linkIdSchema = Joi.object({
 export const paginationSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
+});
+
+/**
+ * Schema for key backup upload
+ */
+export const keyBackupSchema = Joi.object({
+  wrapped_key: Joi.string().max(4096).required(),
+  salt: Joi.string().hex().max(128).required(),
+  iv: Joi.string().hex().max(128).required(),
 });

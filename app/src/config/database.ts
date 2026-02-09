@@ -137,6 +137,24 @@ class DatabaseConfig {
     await this.pool.query('CREATE INDEX IF NOT EXISTS idx_threads_link ON threads(link_id)');
     await this.pool.query('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)');
 
+    // OPSEC columns (idempotent — safe to run on existing databases)
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS public_key TEXT`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS opsec_mode BOOLEAN NOT NULL DEFAULT FALSE`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS opsec_access VARCHAR(20)`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS opsec_passphrase_hash VARCHAR(256)`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS opsec_passphrase_salt VARCHAR(64)`);
+    await this.pool.query(`ALTER TABLE threads ADD COLUMN IF NOT EXISTS sender_public_key TEXT`);
+    await this.pool.query(`ALTER TABLE threads ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+    await this.pool.query(`ALTER TABLE threads ADD COLUMN IF NOT EXISTS access_token_hash VARCHAR(64)`);
+    await this.pool.query(`ALTER TABLE threads ADD COLUMN IF NOT EXISTS passphrase_hash VARCHAR(256)`);
+    await this.pool.query(`ALTER TABLE threads ADD COLUMN IF NOT EXISTS passphrase_salt VARCHAR(64)`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_threads_expires_at ON threads(expires_at) WHERE expires_at IS NOT NULL`);
+
+    // Key backup columns (encrypted private key stored server-side)
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS wrapped_key TEXT`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS backup_salt VARCHAR(128)`);
+    await this.pool.query(`ALTER TABLE links ADD COLUMN IF NOT EXISTS backup_iv VARCHAR(128)`);
+
     // Trigger to auto-increment message_count on threads and links
     await this.pool.query(`
       CREATE OR REPLACE FUNCTION increment_message_count()

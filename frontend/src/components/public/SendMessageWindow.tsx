@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { encrypt, decrypt } from '../../utils/e2ee';
-import { saveSenderKey, getSenderKey, addSentMessage } from '../../utils/key-store';
+import { saveSenderKey, getSenderKey, addSentMessage, saveAccessToken, getAccessToken } from '../../utils/key-store';
 import type { Message } from '../../types';
 
 interface SendMessageWindowProps {
@@ -199,6 +199,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sentThreadId, setSentThreadId] = useState<string | null>(null);
+  const [opsecInfo, setOpsecInfo] = useState<{ access_mode?: string; expires_at?: string } | null>(null);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const { playMatchStrike, playMessageSend } = useAIMSounds();
@@ -233,7 +234,10 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
   const fetchMessages = useCallback(async (signal?: AbortSignal) => {
     if (!sentThreadId) return;
     try {
-      const res = await apiClient.get(endpoints.public.thread(sentThreadId), { signal });
+      const accessToken = getAccessToken(sentThreadId);
+      const headers: Record<string, string> = {};
+      if (accessToken) headers['X-Access-Token'] = accessToken;
+      const res = await apiClient.get(endpoints.public.thread(sentThreadId), { signal, headers });
       const data = res.data?.data;
       const msgList: Message[] = Array.isArray(data?.messages) ? data.messages : [];
 
@@ -287,11 +291,12 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     setSending(true);
     try {
       let body: Record<string, string>;
+      let res;
       if (linkInfo?.public_key) {
         const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
           await encrypt(message.trim(), linkInfo.public_key);
         body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64 };
-        const res = await apiClient.post(endpoints.public.send(), body);
+        res = await apiClient.post(endpoints.public.send(), body);
         const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
         if (threadId) {
           saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessages: [message.trim()] });
@@ -299,12 +304,19 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
         }
       } else {
         body = { recipient_link_id: linkId, message: message.trim() };
-        const res = await apiClient.post(endpoints.public.send(), body);
+        res = await apiClient.post(endpoints.public.send(), body);
         const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
         if (threadId) {
           saveSenderKey(threadId, { privateKeyJwk: {} as JsonWebKey, sentMessages: [message.trim()] });
           setSentThreadId(threadId);
         }
+      }
+      // OPSEC: store access token if present
+      const resData = res?.data?.data as { thread_id?: string; access_token?: string; opsec?: { expires_at: string; access_mode: string } };
+      if (resData?.access_token && resData?.thread_id) {
+        const mode = (resData.opsec?.access_mode === 'single_use' ? 'single_use' : 'device_bound') as 'device_bound' | 'single_use';
+        saveAccessToken(resData.thread_id, resData.access_token, mode);
+        setOpsecInfo({ access_mode: resData.opsec?.access_mode, expires_at: resData.opsec?.expires_at });
       }
       playMatchStrike();
       setMessage('');
@@ -328,7 +340,10 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
       } else {
         body = { message: message.trim() };
       }
-      await apiClient.post(endpoints.public.threadReply(sentThreadId), body);
+      const replyHeaders: Record<string, string> = {};
+      const replyAccessToken = getAccessToken(sentThreadId);
+      if (replyAccessToken) replyHeaders['X-Access-Token'] = replyAccessToken;
+      await apiClient.post(endpoints.public.threadReply(sentThreadId), body, { headers: replyHeaders });
       addSentMessage(sentThreadId, message.trim());
       playMatchStrike();
       setMessage('');
@@ -405,9 +420,17 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
               </AIMButton>
             </ButtonBar>
           </InputArea>
-          <BookmarkBar>
-            Bookmark to return later: <a href={threadUrl} target="_blank" rel="noopener noreferrer">{threadUrl}</a>
-          </BookmarkBar>
+          {opsecInfo && (
+            <BookmarkBar style={{ background: '#FFFFCC', borderTop: '1px solid #E0E000' }}>
+              OPSEC: {opsecInfo.access_mode === 'single_use' ? 'Session-only' : 'Device-bound'}
+              {opsecInfo.expires_at && ` — expires ${new Date(opsecInfo.expires_at).toLocaleString()}`}
+            </BookmarkBar>
+          )}
+          {opsecInfo?.access_mode !== 'single_use' && (
+            <BookmarkBar>
+              Bookmark to return later: <a href={threadUrl} target="_blank" rel="noopener noreferrer">{threadUrl}</a>
+            </BookmarkBar>
+          )}
         </Container>
       </WindowFrame>
     );

@@ -6,7 +6,7 @@
  * Ciphertext format (binary, then base64-encoded):
  *   0x01 || ephemeralPublicKey[65] || iv[12] || aes-gcm-ciphertext+tag[...]
  *
- * File size: ~120 lines
+ * File size: ~190 lines
  */
 
 const ECDH_ALGO: EcKeyGenParams = { name: 'ECDH', namedCurve: 'P-256' };
@@ -14,6 +14,7 @@ const AES_ALGO: AesKeyGenParams = { name: 'AES-GCM', length: 256 };
 const VERSION = 0x01;
 const EPK_LENGTH = 65; // P-256 uncompressed raw public key
 const IV_LENGTH = 12;
+const PBKDF2_ITERATIONS = 600_000;
 
 function bufferToBase64(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -124,4 +125,87 @@ export async function decrypt(
 
   const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct);
   return new TextDecoder().decode(ptBuf);
+}
+
+// ── Key backup: passphrase-based wrapping (PBKDF2 + AES-256-GCM) ──
+
+function hexToBuffer(hex: string): ArrayBuffer {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  return bytes.buffer;
+}
+
+function bufferToHex(buf: ArrayBuffer): string {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function deriveWrappingKey(
+  passphrase: string,
+  salt: Uint8Array,
+  usage: KeyUsage[],
+): Promise<CryptoKey> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    keyMaterial,
+    AES_ALGO,
+    false,
+    usage,
+  );
+}
+
+/**
+ * Wrap (encrypt) an ECDH private key with a user passphrase.
+ * PBKDF2(passphrase, salt, 600k iter) → AES-256-GCM wrapKey.
+ * Returns base64(wrappedKey), hex(salt), hex(iv).
+ */
+export async function wrapPrivateKey(
+  privateKeyJwk: JsonWebKey,
+  passphrase: string,
+): Promise<{ wrappedKey: string; salt: string; iv: string }> {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  const wrappingKey = await deriveWrappingKey(passphrase, salt, ['wrapKey']);
+
+  const ecPriv = await crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_ALGO, true, ['deriveKey']);
+  const wrapped = await crypto.subtle.wrapKey('jwk', ecPriv, wrappingKey, { name: 'AES-GCM', iv });
+
+  return {
+    wrappedKey: bufferToBase64(wrapped),
+    salt: bufferToHex(salt.buffer),
+    iv: bufferToHex(iv.buffer),
+  };
+}
+
+/**
+ * Unwrap (decrypt) an ECDH private key using a user passphrase.
+ * Returns the private key as JWK.
+ */
+export async function unwrapPrivateKey(
+  wrappedKeyBase64: string,
+  passphrase: string,
+  saltHex: string,
+  ivHex: string,
+): Promise<JsonWebKey> {
+  const salt = new Uint8Array(hexToBuffer(saltHex));
+  const iv = new Uint8Array(hexToBuffer(ivHex));
+  const wrappingKey = await deriveWrappingKey(passphrase, salt, ['unwrapKey']);
+
+  const ecPriv = await crypto.subtle.unwrapKey(
+    'jwk',
+    base64ToBuffer(wrappedKeyBase64),
+    wrappingKey,
+    { name: 'AES-GCM', iv },
+    ECDH_ALGO,
+    true,
+    ['deriveKey'],
+  );
+
+  return crypto.subtle.exportKey('jwk', ecPriv);
 }

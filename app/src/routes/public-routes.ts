@@ -10,14 +10,15 @@ import {
   sendAnonymousReply,
   getLinkMetadata,
   getThreadPublic,
+  unlockThread,
   healthCheck,
   readinessCheck,
 } from '../controllers/send-controller';
 import { validateBody, validateParams } from '../middleware/validation-middleware';
 import { sendMessageSchema, replyMessageSchema } from '../validators/message-validators';
 import { linkIdSchema } from '../validators/link-validators';
-import { threadIdSchema } from '../validators/thread-validators';
-import { publicRateLimiter, anonymousReplyRateLimiter, threadViewRateLimiter } from '../middleware/rate-limit-middleware';
+import { threadIdSchema, unlockThreadSchema } from '../validators/thread-validators';
+import { publicRateLimiter, anonymousReplyRateLimiter, threadViewRateLimiter, unlockRateLimiter } from '../middleware/rate-limit-middleware';
 
 const router = Router();
 
@@ -66,6 +67,19 @@ router.post(
   validateParams(threadIdSchema),
   validateBody(replyMessageSchema),
   sendAnonymousReply
+);
+
+/**
+ * Unlock passphrase-protected thread
+ * POST /api/v1/thread/:thread_id/unlock
+ * Returns HMAC session nonce (1h TTL) on valid passphrase.
+ */
+router.post(
+  '/api/v1/thread/:thread_id/unlock',
+  unlockRateLimiter,
+  validateParams(threadIdSchema),
+  validateBody(unlockThreadSchema),
+  unlockThread
 );
 
 /**

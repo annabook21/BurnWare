@@ -13,6 +13,7 @@ import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import { decrypt, encrypt } from '../../utils/e2ee';
 import { getLinkKey, getReplyPlaintexts, saveReplyPlaintext } from '../../utils/key-store';
+import { KeyRecoveryDialog } from './KeyRecoveryDialog';
 import type { Message } from '../../types';
 
 interface ThreadsPanelProps {
@@ -47,6 +48,7 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 }) => {
   const [threads, setThreads] = useState<ThreadData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [needsRecovery, setNeedsRecovery] = useState(false);
   const fetchOkRef = React.useRef(false);
   const { playFireExtinguish, playMessageSend } = useAIMSounds();
   const prevMessageCountRef = React.useRef<number | null>(null);
@@ -91,6 +93,19 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
 
       // E2EE: decrypt messages client-side
       const linkKey = await getLinkKey(linkId);
+      if (!linkKey && activeThreads.some((t) => t.messages.length > 0)) {
+        // Key missing — check if server has a backup
+        try {
+          const token = await getAccessToken();
+          const backupRes = await apiClient.get(
+            endpoints.dashboard.keyBackup(linkId),
+            { headers: { Authorization: `Bearer ${token}` }, signal },
+          );
+          if (backupRes.data?.data) setNeedsRecovery(true);
+        } catch {
+          // No backup available — nothing to recover
+        }
+      }
       for (const thread of activeThreads) {
         const replyCache = await getReplyPlaintexts(thread.thread_id);
         for (const msg of thread.messages) {
@@ -100,6 +115,8 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
             } catch {
               msg.content = '[Unable to decrypt]';
             }
+          } else if (msg.sender_type === 'anonymous' && !linkKey) {
+            msg.content = '[Key missing — recovery required]';
           } else if (msg.sender_type === 'owner') {
             msg.content = replyCache[msg.message_id] || '[Your reply]';
           }
@@ -222,8 +239,21 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
     );
   }
 
+  const handleRecoveryComplete = useCallback(() => {
+    setNeedsRecovery(false);
+    fetchThreads();
+  }, [fetchThreads]);
+
   return (
     <>
+      {needsRecovery && (
+        <KeyRecoveryDialog
+          linkId={linkId}
+          linkName={linkName}
+          onRecovered={handleRecoveryComplete}
+          onClose={() => setNeedsRecovery(false)}
+        />
+      )}
       {threads.map((thread, index) => (
         <ChatWindow
           key={thread.thread_id}

@@ -11,7 +11,7 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import axios from 'axios';
 import { decrypt } from '../../utils/e2ee';
-import { getSenderKey } from '../../utils/key-store';
+import { getSenderKey, getAccessToken, getUnlockToken, saveUnlockToken } from '../../utils/key-store';
 import type { Message } from '../../types/message';
 
 interface ThreadViewProps {
@@ -66,6 +66,30 @@ const StatusText = styled.p`
   font-style: italic;
 `;
 
+const PassphraseForm = styled.div`
+  padding: ${aimTheme.spacing.md};
+  text-align: center;
+`;
+
+const PassphraseInput = styled.input`
+  border: ${aimTheme.borders.inset};
+  padding: ${aimTheme.spacing.sm};
+  font-family: ${aimTheme.fonts.primary};
+  font-size: ${aimTheme.fonts.size.normal};
+  width: 200px;
+  margin-right: ${aimTheme.spacing.sm};
+`;
+
+const UnlockButton = styled.button`
+  padding: 4px 12px;
+  border: ${aimTheme.borders.outset};
+  background: ${aimTheme.colors.gray};
+  font-family: ${aimTheme.fonts.primary};
+  cursor: pointer;
+  &:active { border-style: inset; }
+  &:disabled { color: ${aimTheme.colors.darkGray}; cursor: not-allowed; }
+`;
+
 function formatTime(iso: string | Date): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -77,6 +101,10 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [opsecState, setOpsecState] = useState<'ok' | 'expired' | 'access_denied' | 'passphrase_required'>('ok');
+  const [passphrase, setPassphrase] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,8 +114,14 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
   const fetchThread = useCallback(async (signal?: AbortSignal) => {
     setFetchError(null);
     try {
-      const res = await apiClient.get(endpoints.public.thread(threadId), { signal });
+      const headers: Record<string, string> = {};
+      const accessToken = getAccessToken(threadId);
+      const unlockToken = getUnlockToken(threadId);
+      if (accessToken) headers['X-Access-Token'] = accessToken;
+      if (unlockToken) headers['X-Unlock-Token'] = unlockToken;
+      const res = await apiClient.get(endpoints.public.thread(threadId), { signal, headers });
       const data = res.data?.data;
+      setOpsecState('ok');
       const msgList: Message[] = Array.isArray(data?.messages) ? data.messages : [];
 
       // E2EE: decrypt messages client-side using sender's ephemeral key
@@ -113,10 +147,18 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
       setNotFound(false);
     } catch (err: unknown) {
       if (axios.isCancel(err)) return;
-      const status = (err as { response?: { status?: number } })?.response?.status;
+      const errResp = (err as { response?: { status?: number; data?: { error?: { code?: string } } } })?.response;
+      const status = errResp?.status;
+      const code = errResp?.data?.error?.code;
       if (status === 404) {
         setNotFound(true);
         setMessages([]);
+      } else if (status === 410 || code === 'THREAD_EXPIRED') {
+        setOpsecState('expired');
+      } else if (status === 403 || code === 'ACCESS_DENIED') {
+        setOpsecState('access_denied');
+      } else if (status === 401 || code === 'PASSPHRASE_REQUIRED') {
+        setOpsecState('passphrase_required');
       } else {
         setFetchError('Unable to load thread.');
       }
@@ -125,7 +167,30 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
     }
   }, [threadId]);
 
-  // Recursive setTimeout polling
+  const handleUnlock = useCallback(async () => {
+    if (!passphrase.trim()) return;
+    setUnlocking(true);
+    setUnlockError(null);
+    try {
+      const headers: Record<string, string> = {};
+      const accessToken = getAccessToken(threadId);
+      if (accessToken) headers['X-Access-Token'] = accessToken;
+      const res = await apiClient.post(endpoints.public.threadUnlock(threadId), { passphrase }, { headers });
+      const token = res.data?.data?.unlock_token;
+      if (token) {
+        saveUnlockToken(threadId, token);
+        setOpsecState('ok');
+        setPassphrase('');
+      }
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setUnlockError(status === 401 ? 'Incorrect passphrase.' : 'Failed to unlock. Try again.');
+    } finally {
+      setUnlocking(false);
+    }
+  }, [threadId, passphrase]);
+
+  // Recursive setTimeout polling (pause when OPSEC-blocked)
   useEffect(() => {
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -133,7 +198,7 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
 
     const poll = async () => {
       await fetchThread(controller.signal);
-      if (!stopped) {
+      if (!stopped && opsecState === 'ok') {
         timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
       }
     };
@@ -144,7 +209,7 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [fetchThread]);
+  }, [fetchThread, opsecState]);
 
   if (loading && messages.length === 0) {
     return (
@@ -166,6 +231,45 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
     return (
       <MessageArea compact={compact}>
         <StatusText>This thread has been burned or no longer exists.</StatusText>
+      </MessageArea>
+    );
+  }
+
+  if (opsecState === 'expired') {
+    return (
+      <MessageArea compact={compact}>
+        <StatusText>This thread has expired and self-destructed.</StatusText>
+      </MessageArea>
+    );
+  }
+
+  if (opsecState === 'access_denied') {
+    return (
+      <MessageArea compact={compact}>
+        <StatusText>This thread is device-bound. Access from the original browser.</StatusText>
+      </MessageArea>
+    );
+  }
+
+  if (opsecState === 'passphrase_required') {
+    return (
+      <MessageArea compact={compact}>
+        <PassphraseForm>
+          <StatusText>This thread requires a passphrase to view.</StatusText>
+          <div>
+            <PassphraseInput
+              type="password"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+              placeholder="Enter passphrase"
+            />
+            <UnlockButton onClick={handleUnlock} disabled={unlocking || !passphrase.trim()}>
+              {unlocking ? 'Unlocking...' : 'Unlock'}
+            </UnlockButton>
+          </div>
+          {unlockError && <p style={{ color: aimTheme.colors.fireRed, marginTop: 8 }}>{unlockError}</p>}
+        </PassphraseForm>
       </MessageArea>
     );
   }

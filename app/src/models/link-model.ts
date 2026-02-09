@@ -21,6 +21,13 @@ export interface Link {
   message_count: number;
   qr_code_url?: string;
   public_key?: string;
+  opsec_mode: boolean;
+  opsec_access?: string;
+  opsec_passphrase_hash?: string;
+  opsec_passphrase_salt?: string;
+  wrapped_key?: string;
+  backup_salt?: string;
+  backup_iv?: string;
 }
 
 export interface CreateLinkData {
@@ -31,6 +38,10 @@ export interface CreateLinkData {
   expires_at?: Date;
   qr_code_url?: string;
   public_key?: string;
+  opsec_mode?: boolean;
+  opsec_access?: string;
+  opsec_passphrase_hash?: string;
+  opsec_passphrase_salt?: string;
 }
 
 export class LinkModel {
@@ -43,8 +54,9 @@ export class LinkModel {
    */
   async create(data: CreateLinkData): Promise<Link> {
     const query = `
-      INSERT INTO links (link_id, owner_user_id, display_name, description, expires_at, qr_code_url, public_key)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO links (link_id, owner_user_id, display_name, description, expires_at, qr_code_url, public_key,
+        opsec_mode, opsec_access, opsec_passphrase_hash, opsec_passphrase_salt)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
 
@@ -57,6 +69,10 @@ export class LinkModel {
         data.expires_at || null,
         data.qr_code_url || null,
         data.public_key || null,
+        data.opsec_mode || false,
+        data.opsec_access || null,
+        data.opsec_passphrase_hash || null,
+        data.opsec_passphrase_salt || null,
       ]);
 
       return result.rows[0] as Link;
@@ -170,6 +186,48 @@ export class LinkModel {
     } catch (error) {
       logger.error('Failed to get message counts', { error, user_id: userId });
       throw new DatabaseError('Failed to get message counts', error as Error);
+    }
+  }
+
+  /**
+   * Store encrypted key backup
+   */
+  async updateKeyBackup(
+    linkId: string,
+    wrappedKey: string,
+    salt: string,
+    iv: string,
+  ): Promise<void> {
+    const query = `
+      UPDATE links SET wrapped_key = $2, backup_salt = $3, backup_iv = $4
+      WHERE link_id = $1
+    `;
+
+    try {
+      await this.db.query(query, [linkId, wrappedKey, salt, iv]);
+    } catch (error) {
+      logger.error('Failed to update key backup', { error, link_id: linkId });
+      throw new DatabaseError('Failed to update key backup', error as Error);
+    }
+  }
+
+  /**
+   * Get encrypted key backup
+   */
+  async getKeyBackup(
+    linkId: string,
+  ): Promise<{ wrapped_key: string; backup_salt: string; backup_iv: string } | null> {
+    const query = `
+      SELECT wrapped_key, backup_salt, backup_iv FROM links
+      WHERE link_id = $1 AND wrapped_key IS NOT NULL
+    `;
+
+    try {
+      const result = await this.db.query(query, [linkId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      logger.error('Failed to get key backup', { error, link_id: linkId });
+      throw new DatabaseError('Failed to get key backup', error as Error);
     }
   }
 

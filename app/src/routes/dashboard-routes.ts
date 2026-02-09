@@ -12,6 +12,8 @@ import {
   getLinkById,
   updateLink,
   deleteLink,
+  uploadKeyBackup,
+  getKeyBackup,
 } from '../controllers/link-controller';
 import {
   getLinkThreads,
@@ -26,6 +28,7 @@ import {
   updateLinkSchema,
   linkIdSchema,
   paginationSchema,
+  keyBackupSchema,
 } from '../validators/link-validators';
 import {
   threadIdSchema,
@@ -77,6 +80,21 @@ router.patch(
 
 // Delete link
 router.delete('/api/v1/dashboard/links/:link_id', validateParams(linkIdSchema), deleteLink);
+
+// Upload encrypted key backup
+router.put(
+  '/api/v1/dashboard/links/:link_id/key-backup',
+  validateParams(linkIdSchema),
+  validateBody(keyBackupSchema),
+  uploadKeyBackup
+);
+
+// Get encrypted key backup
+router.get(
+  '/api/v1/dashboard/links/:link_id/key-backup',
+  validateParams(linkIdSchema),
+  getKeyBackup
+);
 
 /**
  * Thread Management

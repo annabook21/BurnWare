@@ -18,6 +18,7 @@ import styled from 'styled-components';
 import { Toaster } from 'sonner';
 import { getAccessToken } from './config/cognito-config';
 import { useAIMSounds } from './hooks/useAIMSounds';
+import { requestPersistentStorage } from './utils/key-store';
 
 const AppContainer = styled.div`
   width: 100vw;
@@ -83,6 +84,8 @@ const App: React.FC = () => {
   const { playWelcome } = useAIMSounds();
 
   useEffect(() => {
+    requestPersistentStorage().catch(() => {});
+
     const checkAuth = async () => {
       try {
         const token = await getAccessToken();

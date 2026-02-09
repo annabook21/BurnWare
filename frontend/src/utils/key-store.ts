@@ -44,7 +44,7 @@ function idbPut(store: string, key: string, value: unknown): Promise<void> {
   return openDb().then(
     (db) =>
       new Promise((resolve, reject) => {
-        const tx = db.transaction(store, 'readwrite');
+        const tx = db.transaction(store, 'readwrite', { durability: 'strict' });
         tx.objectStore(store).put(value, key);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
@@ -96,6 +96,30 @@ export function getSenderKey(threadId: string): SenderThreadData | null {
   }
 }
 
+// ── OPSEC access tokens ──
+
+export function saveAccessToken(threadId: string, token: string, mode: 'device_bound' | 'single_use'): void {
+  const key = `bw:access:${threadId}`;
+  if (mode === 'device_bound') {
+    localStorage.setItem(key, token);
+  } else {
+    sessionStorage.setItem(key, token);
+  }
+}
+
+export function getAccessToken(threadId: string): string | null {
+  const key = `bw:access:${threadId}`;
+  return sessionStorage.getItem(key) || localStorage.getItem(key);
+}
+
+export function saveUnlockToken(threadId: string, token: string): void {
+  sessionStorage.setItem(`bw:unlock:${threadId}`, token);
+}
+
+export function getUnlockToken(threadId: string): string | null {
+  return sessionStorage.getItem(`bw:unlock:${threadId}`);
+}
+
 // ── Owner reply plaintext cache (IndexedDB, persistent) ──
 
 type ReplyMap = Record<string, string>; // message_id → plaintext
@@ -112,4 +136,35 @@ export async function saveReplyPlaintext(
 
 export async function getReplyPlaintexts(threadId: string): Promise<ReplyMap> {
   return (await idbGet<ReplyMap>(REPLY_CACHE_STORE, threadId)) || {};
+}
+
+// ── Storage persistence (Safari ITP 7-day eviction prevention) ──
+
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (navigator.storage?.persist) {
+    return navigator.storage.persist();
+  }
+  return false;
+}
+
+// ── Bulk key access (for backup operations) ──
+
+export async function getAllLinkKeys(): Promise<Map<string, JsonWebKey>> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LINK_KEYS_STORE, 'readonly');
+    const store = tx.objectStore(LINK_KEYS_STORE);
+    const req = store.openCursor();
+    const keys = new Map<string, JsonWebKey>();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        keys.set(cursor.key as string, cursor.value as JsonWebKey);
+        cursor.continue();
+      } else {
+        resolve(keys);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
 }

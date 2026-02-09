@@ -1,10 +1,15 @@
 /**
  * Crypto Utilities
- * Secure token generation and HMAC functions
- * File size: ~145 lines
+ * Secure token generation, HMAC, and PBKDF2 functions
+ * File size: ~95 lines
  */
 
 import crypto from 'crypto';
+
+const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_KEY_LENGTH = 32;
+const PBKDF2_DIGEST = 'sha256';
+const PBKDF2_SALT_LENGTH = 32;
 
 export class CryptoUtils {
   /**
@@ -45,6 +50,33 @@ export class CryptoUtils {
    */
   static hash(data: string): string {
     return crypto.createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
+   * Hash passphrase with PBKDF2 (OWASP 2023+ minimum: 600k iterations SHA-256)
+   */
+  static async pbkdf2Hash(passphrase: string): Promise<{ hash: string; salt: string }> {
+    const salt = crypto.randomBytes(PBKDF2_SALT_LENGTH);
+    const derived = await new Promise<Buffer>((resolve, reject) => {
+      crypto.pbkdf2(passphrase, salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST,
+        (err, key) => (err ? reject(err) : resolve(key)));
+    });
+    return { hash: derived.toString('hex'), salt: salt.toString('hex') };
+  }
+
+  /**
+   * Verify passphrase against stored PBKDF2 hash (timing-safe)
+   */
+  static async pbkdf2Verify(passphrase: string, hash: string, salt: string): Promise<boolean> {
+    const derived = await new Promise<Buffer>((resolve, reject) => {
+      crypto.pbkdf2(passphrase, Buffer.from(salt, 'hex'), PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST,
+        (err, key) => (err ? reject(err) : resolve(key)));
+    });
+    try {
+      return crypto.timingSafeEqual(derived, Buffer.from(hash, 'hex'));
+    } catch {
+      return false;
+    }
   }
 }
 

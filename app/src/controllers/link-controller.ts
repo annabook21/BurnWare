@@ -145,3 +145,39 @@ export const deleteLink = asyncHandler(
     res.status(204).send();
   }
 );
+
+/**
+ * Upload encrypted key backup
+ * PUT /api/v1/dashboard/links/:link_id/key-backup
+ */
+export const uploadKeyBackup = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = req.user!.sub;
+    const { link_id } = req.params as Record<string, string>;
+    const data = req.validated as { wrapped_key: string; salt: string; iv: string };
+
+    await linkService.uploadKeyBackup(link_id, userId, data);
+
+    ResponseUtils.success(res, { message: 'Key backup stored' });
+  }
+);
+
+/**
+ * Get encrypted key backup
+ * GET /api/v1/dashboard/links/:link_id/key-backup
+ */
+export const getKeyBackup = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = req.user!.sub;
+    const { link_id } = req.params as Record<string, string>;
+
+    const backup = await linkService.getKeyBackup(link_id, userId);
+
+    if (!backup) {
+      res.status(404).json({ error: { code: 'NO_BACKUP', message: 'No key backup found' } });
+      return;
+    }
+
+    ResponseUtils.success(res, backup);
+  }
+);

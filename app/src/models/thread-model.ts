@@ -18,12 +18,20 @@ export interface Thread {
   message_count: number;
   sender_anonymous_id: string;
   sender_public_key?: string;
+  expires_at?: Date;
+  access_token_hash?: string;
+  passphrase_hash?: string;
+  passphrase_salt?: string;
 }
 
 export interface CreateThreadData {
   link_id: string;
   sender_anonymous_id: string;
   sender_public_key?: string;
+  expires_at?: Date;
+  access_token_hash?: string;
+  passphrase_hash?: string;
+  passphrase_salt?: string;
 }
 
 export class ThreadModel {
@@ -36,13 +44,18 @@ export class ThreadModel {
    */
   async create(data: CreateThreadData): Promise<Thread> {
     const query = `
-      INSERT INTO threads (link_id, sender_anonymous_id, sender_public_key)
-      VALUES ($1, $2, $3)
+      INSERT INTO threads (link_id, sender_anonymous_id, sender_public_key,
+        expires_at, access_token_hash, passphrase_hash, passphrase_salt)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
     try {
-      const result = await this.db.query(query, [data.link_id, data.sender_anonymous_id, data.sender_public_key || null]);
+      const result = await this.db.query(query, [
+        data.link_id, data.sender_anonymous_id, data.sender_public_key || null,
+        data.expires_at || null, data.access_token_hash || null,
+        data.passphrase_hash || null, data.passphrase_salt || null,
+      ]);
       return result.rows[0] as Thread;
     } catch (error) {
       logger.error('Failed to create thread', { error });

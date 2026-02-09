@@ -13,11 +13,13 @@ export const endpoints = {
     thread: (threadId: string) => `${API_BASE}/dashboard/threads/${threadId}`,
     threadReply: (threadId: string) => `${API_BASE}/dashboard/threads/${threadId}/reply`,
     threadBurn: (threadId: string) => `${API_BASE}/dashboard/threads/${threadId}/burn`,
+    keyBackup: (linkId: string) => `${API_BASE}/dashboard/links/${linkId}/key-backup`,
   },
   public: {
     linkMetadata: (linkId: string) => `${API_BASE}/link/${linkId}/metadata`,
     send: () => `${API_BASE}/send`,
     thread: (threadId: string) => `${API_BASE}/thread/${threadId}`,
     threadReply: (threadId: string) => `${API_BASE}/thread/${threadId}/reply`,
+    threadUnlock: (threadId: string) => `${API_BASE}/thread/${threadId}/unlock`,
   },
 };

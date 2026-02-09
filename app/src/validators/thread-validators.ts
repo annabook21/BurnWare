@@ -29,3 +29,10 @@ export const threadQuerySchema = Joi.object({
 export const burnThreadSchema = Joi.object({
   confirm: Joi.boolean().valid(true).required(),
 });
+
+/**
+ * Schema for unlocking a passphrase-protected thread
+ */
+export const unlockThreadSchema = Joi.object({
+  passphrase: Joi.string().min(1).max(128).required(),
+});

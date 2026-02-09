@@ -7,9 +7,10 @@
 import { MessageModel, Message, CreateMessageData } from '../models/message-model';
 import { ThreadModel } from '../models/thread-model';
 import { LinkModel } from '../models/link-model';
+import { CryptoUtils } from '../utils/crypto-utils';
 import { TokenService } from './token-service';
 import { ThreadService } from './thread-service';
-import { ValidationError, NotFoundError } from '../utils/error-utils';
+import { ValidationError, NotFoundError, AuthorizationError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { LoggerUtils } from '../utils/logger-utils';
 
@@ -36,11 +37,14 @@ export class MessageService {
   }
 
   /**
-   * Send anonymous message to link
+   * Send anonymous message to link.
+   * For OPSEC links: returns access_token and opsec metadata alongside thread_id.
    */
   async sendAnonymousMessage(input: SendMessageInput): Promise<{
     thread_id: string;
     created_at: Date;
+    access_token?: string;
+    opsec?: { expires_at: Date; access_mode: string; passphrase_required: boolean };
   }> {
     const { recipient_link_id, ciphertext, sender_public_key, message } = input;
     const content = ciphertext || message;
@@ -54,25 +58,21 @@ export class MessageService {
       throw new NotFoundError('Link');
     }
 
-    // Check if link is expired
     if (TokenService.isExpired(link.expires_at)) {
       throw new ValidationError('Link has expired');
     }
 
-    // Check if link is burned
     if (link.burned) {
       throw new ValidationError('Link is no longer active');
     }
 
-    // Create new thread for each anonymous message (with sender's E2EE public key if present)
-    const thread = await this.threadService.createThread(recipient_link_id, sender_public_key);
+    // Create new thread (OPSEC settings applied inside createThread)
+    const { thread, accessToken } = await this.threadService.createThread(recipient_link_id, sender_public_key);
 
-    // Check if thread is burned
     if (thread.burned) {
       throw new ValidationError('Thread has been burned by the recipient');
     }
 
-    // Create message (content is ciphertext for E2EE links, plaintext for legacy)
     const messageData: CreateMessageData = {
       thread_id: thread.thread_id,
       content,
@@ -93,15 +93,25 @@ export class MessageService {
     return {
       thread_id: thread.thread_id,
       created_at: newMessage.created_at,
+      access_token: accessToken,
+      ...(link.opsec_mode && thread.expires_at && {
+        opsec: {
+          expires_at: thread.expires_at,
+          access_mode: link.opsec_access || 'device_bound',
+          passphrase_required: !!thread.passphrase_hash,
+        },
+      }),
     };
   }
 
   /**
-   * Send anonymous follow-up message to existing thread
+   * Send anonymous follow-up message to existing thread.
+   * For OPSEC threads: verifies access token and expiry.
    */
   async sendAnonymousReply(
     threadId: string,
-    content: string
+    content: string,
+    accessToken?: string,
   ): Promise<Message> {
     const thread = await this.threadModel.findById(threadId);
     if (!thread) {
@@ -110,6 +120,18 @@ export class MessageService {
 
     if (thread.burned) {
       throw new ValidationError('Thread has been burned');
+    }
+
+    // OPSEC: check expiry
+    if (TokenService.isExpired(thread.expires_at)) {
+      throw new ValidationError('Thread has expired');
+    }
+
+    // OPSEC: verify access token
+    if (thread.access_token_hash) {
+      if (!accessToken || CryptoUtils.hash(accessToken) !== thread.access_token_hash) {
+        throw new AuthorizationError('Invalid access token');
+      }
     }
 
     const link = await this.linkModel.findById(thread.link_id);
