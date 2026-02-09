@@ -45,9 +45,15 @@ function getAuthHeaders(): Record<string, string> {
   };
 }
 
-/** Normalize channel to always have a leading slash */
+/**
+ * Normalize channel path for AppSync Events.
+ * - Ensures leading slash
+ * - Replaces underscores with dashes (AppSync channels only allow [A-Za-z0-9-])
+ *   Link IDs are base64url which includes underscores; UUIDs are unaffected.
+ */
 function normalizeChannel(channel: string): string {
-  return channel.startsWith('/') ? channel : `/${channel}`;
+  const withSlash = channel.startsWith('/') ? channel : `/${channel}`;
+  return withSlash.replace(/_/g, '-');
 }
 
 function resetKeepAlive(timeoutMs: number): void {

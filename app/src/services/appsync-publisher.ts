@@ -27,6 +27,12 @@ export class AppSyncPublisher {
     return !!(this.httpDomain && this.apiKey);
   }
 
+  /** Replace underscores with dashes for AppSync Events channel compatibility.
+   *  Channels only allow [A-Za-z0-9-]; link IDs are base64url which includes '_'. */
+  private channelSafe(id: string): string {
+    return id.replace(/_/g, '-');
+  }
+
   async publishNewMessage(threadId: string, linkId: string, senderType: 'anonymous' | 'owner'): Promise<void> {
     if (!this.enabled) return;
 
@@ -43,8 +49,8 @@ export class AppSyncPublisher {
     //   thread/{thread_id} — anonymous sender subscribes
     //   link/{link_id}     — dashboard owner subscribes
     await Promise.allSettled([
-      this.publish(`/messages/thread/${threadId}`, payload),
-      this.publish(`/messages/link/${linkId}`, payload),
+      this.publish(`/messages/thread/${this.channelSafe(threadId)}`, payload),
+      this.publish(`/messages/link/${this.channelSafe(linkId)}`, payload),
     ]);
   }
 
