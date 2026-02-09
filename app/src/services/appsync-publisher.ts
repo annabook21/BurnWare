@@ -18,24 +18,23 @@ interface MessageEvent {
   timestamp: number;
 }
 
-let hasLoggedDisabled = false;
-
 export class AppSyncPublisher {
-  private lambdaClient: LambdaClient | undefined;
-  private publishFnArn: string | undefined;
+  private _lambdaClient: LambdaClient | undefined;
 
-  constructor() {
-    this.publishFnArn = process.env.APPSYNC_PUBLISH_FN_ARN;
-    if (this.publishFnArn) {
-      this.lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
-    } else if (!hasLoggedDisabled) {
-      hasLoggedDisabled = true;
-      logger.warn('AppSync Events disabled: APPSYNC_PUBLISH_FN_ARN not set. Real-time notifications will not be sent.');
+  /** Lazy getter — env var may not be set at construction time (dotenv loads after imports). */
+  private get publishFnArn(): string | undefined {
+    return process.env.APPSYNC_PUBLISH_FN_ARN;
+  }
+
+  private get lambdaClient(): LambdaClient {
+    if (!this._lambdaClient) {
+      this._lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
     }
+    return this._lambdaClient;
   }
 
   private get enabled(): boolean {
-    return !!(this.publishFnArn && this.lambdaClient);
+    return !!this.publishFnArn;
   }
 
   /** Replace underscores with dashes for AppSync Events channel compatibility.
@@ -72,7 +71,7 @@ export class AppSyncPublisher {
         InvocationType: 'RequestResponse',
         Payload: Buffer.from(JSON.stringify({ channel, events: [eventPayload] })),
       });
-      const result = await this.lambdaClient!.send(command);
+      const result = await this.lambdaClient.send(command);
 
       if (result.FunctionError) {
         const errorPayload = result.Payload ? Buffer.from(result.Payload).toString() : 'unknown';
