@@ -28,6 +28,9 @@ let socketConnecting = false;
 let keepAliveTimeoutId: ReturnType<typeof setTimeout> | undefined;
 let connectionTimeoutMs = 300_000; // default 5 min, updated from connection_ack
 let reconnectAttempt = 0;
+let hasLoggedNotConfigured = false;
+let hasLoggedConnected = false;
+let hasLoggedEvent = false;
 
 interface SubEntry {
   channel: string;
@@ -43,18 +46,14 @@ function getWsUrl(): string {
   return `wss://${realtimeDns}/event/realtime`;
 }
 
-/** AWS date string in compact ISO format (required for API key auth) */
-function getAmzDateString(): string {
-  return new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+/** Auth for WebSocket connection handshake (subprotocol) and for subscribe messages. API key format per AWS docs: host + x-api-key only. */
+function getConnectionAuth(): Record<string, string> {
+  const { httpDns, apiKey } = awsConfig.appSync;
+  return { host: httpDns, 'x-api-key': apiKey };
 }
 
 function getAuthHeaders(): Record<string, string> {
-  const { httpDns, apiKey } = awsConfig.appSync;
-  return {
-    host: httpDns,
-    'x-amz-date': getAmzDateString(),
-    'x-api-key': apiKey,
-  };
+  return getConnectionAuth();
 }
 
 /**
@@ -144,16 +143,21 @@ function ensureConnection(): void {
   if (sharedSocket?.readyState === WebSocket.OPEN || socketConnecting) return;
 
   const { realtimeDns, apiKey, httpDns } = awsConfig.appSync;
-  if (!realtimeDns || !apiKey || !httpDns) return;
+  if (!realtimeDns || !apiKey || !httpDns) {
+    if (!hasLoggedNotConfigured) {
+      hasLoggedNotConfigured = true;
+      console.warn(
+        '[BurnWare] Real-time disabled: AppSync not configured. Set VITE_APPSYNC_REALTIME_DOMAIN, VITE_APPSYNC_HTTP_DOMAIN, VITE_APPSYNC_API_KEY in frontend/.env for local dev, or ensure runtime-config.json is deployed (CDK Frontend stack).'
+      );
+    }
+    return;
+  }
 
   socketConnecting = true;
   socketReady = false;
+  hasLoggedConnected = false;
 
-  const authHeader = JSON.stringify({
-    host: httpDns,
-    'x-amz-date': getAmzDateString(),
-    'x-api-key': apiKey,
-  });
+  const authHeader = JSON.stringify(getConnectionAuth());
   const encoded = btoa(authHeader)
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -174,6 +178,10 @@ function ensureConnection(): void {
         reconnectAttempt = 0;
         connectionTimeoutMs = msg.connectionTimeoutMs || connectionTimeoutMs;
         resetKeepAlive(connectionTimeoutMs);
+        if (!hasLoggedConnected) {
+          hasLoggedConnected = true;
+          console.info('[BurnWare] Real-time connected (AppSync Events)');
+        }
         flushPending();
         break;
 
@@ -185,6 +193,11 @@ function ensureConnection(): void {
       case 'data': {
         const sub = subscriptions.get(msg.id);
         if (!sub) break;
+
+        if (!hasLoggedEvent) {
+          hasLoggedEvent = true;
+          console.info('[BurnWare] Real-time event received — UI will refresh');
+        }
 
         // AppSync Events sends event as a JSON string or array of JSON strings
         const events = Array.isArray(msg.event) ? msg.event : [msg.event];
@@ -200,9 +213,14 @@ function ensureConnection(): void {
         break;
       }
 
-      case 'subscribe_success':
+      case 'subscribe_success': {
         pendingSubscribes.delete(msg.id);
+        const sub = subscriptions.get(msg.id);
+        if (import.meta.env.DEV && sub) {
+          console.info('[BurnWare] Subscribed to', sub.channel);
+        }
         break;
+      }
 
       case 'subscribe_error': {
         const failedSub = subscriptions.get(msg.id);
@@ -257,7 +275,8 @@ export function useAppSyncEvents(
   const subIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!channel || !awsConfig.appSync.realtimeDns) return;
+    const { realtimeDns } = awsConfig.appSync;
+    if (!channel || !realtimeDns) return;
 
     const subId = `sub-${++subCounter}`;
     subIdRef.current = subId;

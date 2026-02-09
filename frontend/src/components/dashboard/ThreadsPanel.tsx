@@ -51,10 +51,18 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [needsRecovery, setNeedsRecovery] = useState(false);
   const fetchOkRef = React.useRef(false);
+  const fetchInProgressRef = React.useRef(false);
+  const refetchPendingRef = React.useRef(false);
   const { playFireExtinguish, playMessageSend } = useAIMSounds();
   const prevMessageCountRef = React.useRef<number | null>(null);
 
   const fetchThreads = useCallback(async (signal?: AbortSignal) => {
+    if (fetchInProgressRef.current) {
+      refetchPendingRef.current = true;
+      return;
+    }
+    fetchInProgressRef.current = true;
+    refetchPendingRef.current = false;
     try {
       const token = await getAccessToken();
       const headers = { Authorization: `Bearer ${token}` };
@@ -138,6 +146,12 @@ export const ThreadsPanel: React.FC<ThreadsPanelProps> = ({
       if (!axios.isCancel(error)) {
         console.error('Failed to fetch threads:', error);
         setLoading(false);
+      }
+    } finally {
+      fetchInProgressRef.current = false;
+      if (refetchPendingRef.current) {
+        refetchPendingRef.current = false;
+        void fetchThreads(); // one more run without signal (e.g. after poll + AppSync coalesced)
       }
     }
   }, [linkId, playMessageSend]);

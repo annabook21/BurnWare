@@ -14,6 +14,8 @@ interface MessageEvent {
   timestamp: number;
 }
 
+let hasLoggedDisabled = false;
+
 export class AppSyncPublisher {
   private httpDomain: string | undefined;
   private apiKey: string | undefined;
@@ -21,6 +23,12 @@ export class AppSyncPublisher {
   constructor() {
     this.httpDomain = process.env.APPSYNC_HTTP_DOMAIN;
     this.apiKey = process.env.APPSYNC_API_KEY;
+    if (!this.httpDomain || !this.apiKey) {
+      if (!hasLoggedDisabled) {
+        hasLoggedDisabled = true;
+        logger.warn('AppSync Events disabled: APPSYNC_HTTP_DOMAIN or APPSYNC_API_KEY not set. Real-time notifications will not be sent.');
+      }
+    }
   }
 
   private get enabled(): boolean {
@@ -70,6 +78,8 @@ export class AppSyncPublisher {
 
       if (!res.ok) {
         logger.warn('AppSync publish failed', { channel, status: res.status });
+      } else {
+        logger.debug('AppSync publish ok', { channel });
       }
     } catch (err) {
       logger.warn('AppSync publish error', { channel, error: (err as Error).message });

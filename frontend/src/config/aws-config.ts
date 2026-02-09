@@ -14,13 +14,23 @@ let runtimeAppSync: { httpDns?: string; realtimeDns?: string; apiKey?: string } 
 /** Fetch runtime-config.json. Safe to call multiple times; no-ops on failure. */
 export async function loadRuntimeConfig(): Promise<void> {
   try {
-    const res = await fetch('/runtime-config.json');
+    const res = await fetch('/runtime-config.json', { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       runtimeAppSync = json?.appSync ?? {};
+      const hasRealtime = !!(runtimeAppSync.realtimeDns && runtimeAppSync.apiKey);
+      if (import.meta.env.DEV && hasRealtime) {
+        console.info('[BurnWare] Runtime config loaded — real-time enabled');
+      }
+    } else {
+      if (import.meta.env.DEV) {
+        console.warn('[BurnWare] runtime-config.json not found or error — real-time may be disabled. Use .env VITE_APPSYNC_* for local dev.');
+      }
     }
-  } catch {
-    // Local dev or offline — fall back to .env values
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[BurnWare] Could not load runtime-config.json:', (e as Error).message, '— real-time may be disabled.');
+    }
   }
 }
 

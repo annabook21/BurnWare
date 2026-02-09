@@ -12,6 +12,7 @@ import type { Link } from '../types';
 
 const COUNTS_INTERVAL_MS = 10_000; // 10s — lightweight
 const LINKS_INTERVAL_MS = 30_000; // 30s — full metadata
+const MIN_LINKS_FETCH_INTERVAL_MS = 5_000; // coalesce automatic fetchLinks (counts + 30s poll)
 
 interface MessagePollingResult {
   links: Link[];
@@ -28,8 +29,9 @@ export const useMessagePolling = (): MessagePollingResult => {
 
   // Baseline counts — first poll sets this, subsequent polls compare against it
   const baselineCounts = useRef<Map<string, number> | null>(null);
+  const lastFetchLinksTime = useRef<number>(0);
 
-  const fetchLinks = useCallback(async (signal?: AbortSignal) => {
+  const fetchLinksInternal = useCallback(async (signal?: AbortSignal) => {
     try {
       const token = await getAccessToken();
       const response = await apiClient.get(endpoints.dashboard.links(), {
@@ -38,6 +40,7 @@ export const useMessagePolling = (): MessagePollingResult => {
       });
       setLinks(response.data.data || []);
       setLoading(false);
+      lastFetchLinksTime.current = Date.now();
     } catch (error) {
       if (!axios.isCancel(error)) {
         console.error('Failed to fetch links:', error);
@@ -45,6 +48,11 @@ export const useMessagePolling = (): MessagePollingResult => {
       }
     }
   }, []);
+
+  const fetchLinks = useCallback(async (signal?: AbortSignal) => {
+    if (Date.now() - lastFetchLinksTime.current < MIN_LINKS_FETCH_INTERVAL_MS) return;
+    await fetchLinksInternal(signal);
+  }, [fetchLinksInternal]);
 
   const fetchCounts = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -139,5 +147,6 @@ export const useMessagePolling = (): MessagePollingResult => {
     };
   }, [fetchCounts]);
 
-  return { links, loading, newMessageLinkIds, acknowledgeLink, refreshLinks: fetchLinks };
+  const refreshLinks = useCallback(() => fetchLinksInternal(), [fetchLinksInternal]);
+  return { links, loading, newMessageLinkIds, acknowledgeLink, refreshLinks };
 };

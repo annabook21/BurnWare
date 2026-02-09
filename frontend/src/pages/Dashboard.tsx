@@ -110,10 +110,15 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Check if backup setup is needed (once after links load)
+  // Check if backup setup is needed (once after links load; re-run only when link set changes)
+  const checkedLinkIdsRef = useRef<string | null>(null);
   useEffect(() => {
     if (loading || links.length === 0) return;
     if (localStorage.getItem('bw:backup-configured')) return;
+
+    const linkIdsKey = links.map((l) => l.link_id).sort().join(',');
+    if (checkedLinkIdsRef.current === linkIdsKey) return;
+    checkedLinkIdsRef.current = linkIdsKey;
 
     const checkBackup = async () => {
       try {
@@ -121,17 +126,18 @@ export const Dashboard: React.FC = () => {
         if (localKeys.size === 0) return;
 
         const token = await getAccessToken();
-        const needsBackup: string[] = [];
-        for (const link of links) {
-          if (!localKeys.has(link.link_id)) continue;
-          try {
-            await apiClient.get(endpoints.dashboard.keyBackup(link.link_id), {
+        const toCheck = links.filter((l) => localKeys.has(l.link_id));
+        const results = await Promise.allSettled(
+          toCheck.map((link) =>
+            apiClient.get(endpoints.dashboard.keyBackup(link.link_id), {
               headers: { Authorization: `Bearer ${token}` },
-            });
-          } catch {
-            needsBackup.push(link.link_id);
-          }
-        }
+            })
+          )
+        );
+        const needsBackup: string[] = [];
+        toCheck.forEach((link, i) => {
+          if (results[i].status === 'rejected') needsBackup.push(link.link_id);
+        });
         if (needsBackup.length > 0) {
           setUnbackedLinkIds(needsBackup);
           setShowBackupSetup(true);
