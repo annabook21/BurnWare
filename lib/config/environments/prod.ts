@@ -9,18 +9,18 @@ import { EnvironmentConfig } from './dev';
 export const prodConfig: EnvironmentConfig = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
+    region: 'us-east-1', // Hardcoded: CloudFront requires ACM certs in us-east-1
   },
   domainName: 'burnware.live',
   hostedZoneDomain: 'burnware.live',
-  enableDeletionProtection: true,
-  enableBackup: true,
-  enableMultiAz: true,
-  asgMinCapacity: 2,
-  asgMaxCapacity: 10,
-  asgDesiredCapacity: 2,
-  rdsInstanceType: 'db.r6g.large',
-  enableEnhancedMonitoring: true,
-  logRetentionDays: 90,
+  enableDeletionProtection: false,
+  enableBackup: false,
+  enableMultiAz: false,
+  asgMinCapacity: 1,
+  asgMaxCapacity: 2,
+  asgDesiredCapacity: 1,
+  rdsInstanceType: 'db.t3.micro',
+  enableEnhancedMonitoring: false,
+  logRetentionDays: 7,
   alarmEmail: 'ops-alerts@example.com',
 };
