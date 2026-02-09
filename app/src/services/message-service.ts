@@ -17,12 +17,8 @@ import { AppSyncPublisher } from './appsync-publisher';
 
 export interface SendMessageInput {
   recipient_link_id: string;
-  // E2EE (new links with public_key)
-  ciphertext?: string;
-  sender_public_key?: string;
-  // Legacy plaintext (links without public_key)
-  message?: string;
-  // OPSEC passphrase (required for passphrase-gated links)
+  ciphertext: string;
+  sender_public_key: string;
   passphrase?: string;
 }
 
@@ -51,16 +47,14 @@ export class MessageService {
     access_token?: string;
     opsec?: { expires_at: Date; access_mode: string; passphrase_required: boolean };
   }> {
-    const { recipient_link_id, ciphertext, sender_public_key, message } = input;
-    const content = ciphertext || message;
-    if (!content) {
-      throw new ValidationError('Message content is required');
-    }
+    const { recipient_link_id, ciphertext, sender_public_key } = input;
 
-    // Validate link exists and is active
     const link = await this.linkModel.findById(recipient_link_id);
     if (!link) {
       throw new NotFoundError('Link');
+    }
+    if (!link.public_key) {
+      throw new ValidationError('This link does not accept messages');
     }
 
     if (TokenService.isExpired(link.expires_at)) {
@@ -93,7 +87,7 @@ export class MessageService {
 
     const messageData: CreateMessageData = {
       thread_id: thread.thread_id,
-      content,
+      content: ciphertext,
       sender_type: 'anonymous',
     };
 

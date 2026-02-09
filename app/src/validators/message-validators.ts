@@ -7,28 +7,22 @@
 import Joi from 'joi';
 
 /**
- * Schema for sending anonymous message
+ * Schema for sending anonymous message (E2EE only)
  */
 export const sendMessageSchema = Joi.object({
   recipient_link_id: Joi.string().pattern(/^[A-Za-z0-9_-]+$/).min(8).max(16).required(),
-  // E2EE: ciphertext + sender_public_key (new links with public_key)
-  ciphertext: Joi.string().min(1).max(10000),
-  sender_public_key: Joi.string().min(1).max(500),
-  // Legacy plaintext (links without public_key)
-  message: Joi.string().min(1).max(5000),
+  ciphertext: Joi.string().min(1).max(10000).required(),
+  sender_public_key: Joi.string().min(1).max(500).required(),
   captcha_token: Joi.string().optional(), // WAF CAPTCHA token
   passphrase: Joi.string().min(1).max(128), // OPSEC passphrase (required for passphrase-gated links)
-}).or('ciphertext', 'message')
-  .with('ciphertext', 'sender_public_key')
-  .with('sender_public_key', 'ciphertext');
+});
 
 /**
- * Schema for owner reply to thread
+ * Schema for owner reply to thread (E2EE only)
  */
 export const replyMessageSchema = Joi.object({
-  ciphertext: Joi.string().min(1).max(10000),
-  message: Joi.string().min(1).max(5000),
-}).or('ciphertext', 'message');
+  ciphertext: Joi.string().min(1).max(10000).required(),
+});
 
 /**
  * Schema for message query filters

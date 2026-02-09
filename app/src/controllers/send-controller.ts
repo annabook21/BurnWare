@@ -38,11 +38,10 @@ export const sendMessage = asyncHandler(
     const subsegment = createSubsegment('send_message');
 
     try {
-      const { recipient_link_id, ciphertext, sender_public_key, message, passphrase } = req.validated as {
+      const { recipient_link_id, ciphertext, sender_public_key, passphrase } = req.validated as {
         recipient_link_id: string;
-        ciphertext?: string;
-        sender_public_key?: string;
-        message?: string;
+        ciphertext: string;
+        sender_public_key: string;
         passphrase?: string;
       };
 
@@ -50,7 +49,6 @@ export const sendMessage = asyncHandler(
         recipient_link_id,
         ciphertext,
         sender_public_key,
-        message,
         passphrase,
       });
 
@@ -83,11 +81,10 @@ export const sendMessage = asyncHandler(
 export const sendAnonymousReply = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const { thread_id } = req.params as Record<string, string>;
-    const { ciphertext, message } = req.validated as { ciphertext?: string; message?: string };
-    const content = (ciphertext || message)!;
+    const { ciphertext } = req.validated as { ciphertext: string };
     const accessToken = getAccessToken(req);
 
-    const result = await messageService.sendAnonymousReply(thread_id, content, accessToken);
+    const result = await messageService.sendAnonymousReply(thread_id, ciphertext, accessToken);
 
     ResponseUtils.success(res, {
       message_id: result.message_id,

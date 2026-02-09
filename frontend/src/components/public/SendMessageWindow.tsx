@@ -293,31 +293,19 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     useCallback(() => { fetchMessages(); }, [fetchMessages])
   );
 
-  // First message send
+  // First message send (E2EE only)
   const handleFirstSend = async () => {
-    if (!message.trim() || sending) return;
+    if (!message.trim() || sending || !linkInfo?.public_key) return;
     setSending(true);
     try {
-      let body: Record<string, string>;
-      let res;
-      if (linkInfo?.public_key) {
-        const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
-          await encrypt(message.trim(), linkInfo.public_key);
-        body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64, ...(passphrase && { passphrase }) };
-        res = await apiClient.post(endpoints.public.send(), body);
-        const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
-        if (threadId) {
-          saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessages: [message.trim()] });
-          setSentThreadId(threadId);
-        }
-      } else {
-        body = { recipient_link_id: linkId, message: message.trim(), ...(passphrase && { passphrase }) };
-        res = await apiClient.post(endpoints.public.send(), body);
-        const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
-        if (threadId) {
-          saveSenderKey(threadId, { privateKeyJwk: {} as JsonWebKey, sentMessages: [message.trim()] });
-          setSentThreadId(threadId);
-        }
+      const { ciphertext, ephemeralPublicKeyBase64, ephemeralPrivateKeyJwk } =
+        await encrypt(message.trim(), linkInfo.public_key);
+      const body = { recipient_link_id: linkId, ciphertext, sender_public_key: ephemeralPublicKeyBase64, ...(passphrase && { passphrase }) };
+      const res = await apiClient.post(endpoints.public.send(), body);
+      const threadId = (res.data?.data as { thread_id?: string })?.thread_id;
+      if (threadId) {
+        saveSenderKey(threadId, { privateKeyJwk: ephemeralPrivateKeyJwk, sentMessages: [message.trim()] });
+        setSentThreadId(threadId);
       }
       // OPSEC: store access token if present
       const resData = res?.data?.data as { thread_id?: string; access_token?: string; opsec?: { expires_at: string; access_mode: string } };
@@ -343,22 +331,16 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
     }
   };
 
-  // Follow-up message send (live chat)
+  // Follow-up message send (E2EE only)
   const handleFollowUp = async () => {
-    if (!message.trim() || sending || !sentThreadId) return;
+    if (!message.trim() || sending || !sentThreadId || !linkInfo?.public_key) return;
     setSending(true);
     try {
-      let body: Record<string, string>;
-      if (linkInfo?.public_key) {
-        const { ciphertext } = await encrypt(message.trim(), linkInfo.public_key);
-        body = { ciphertext };
-      } else {
-        body = { message: message.trim() };
-      }
+      const { ciphertext } = await encrypt(message.trim(), linkInfo.public_key);
       const replyHeaders: Record<string, string> = {};
       const replyAccessToken = getAccessToken(sentThreadId);
       if (replyAccessToken) replyHeaders['X-Access-Token'] = replyAccessToken;
-      await apiClient.post(endpoints.public.threadReply(sentThreadId), body, { headers: replyHeaders });
+      await apiClient.post(endpoints.public.threadReply(sentThreadId), { ciphertext }, { headers: replyHeaders });
       addSentMessage(sentThreadId, message.trim());
       playMatchStrike();
       setMessage('');
@@ -474,7 +456,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
           <PrivacyNote>
             {linkInfo?.public_key
               ? 'End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
-              : 'Your identity is anonymous — no account or IP stored.'}
+              : 'This link does not accept messages.'}
           </PrivacyNote>
           {linkInfo?.opsec?.passphrase_required && (
             <div style={{ marginTop: aimTheme.spacing.sm }}>
@@ -497,7 +479,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             </div>
           )}
           <ButtonBar>
-            <AIMButton onClick={handleFirstSend} disabled={!message.trim() || sending || (!!linkInfo?.opsec?.passphrase_required && !passphrase)}>
+            <AIMButton onClick={handleFirstSend} disabled={!linkInfo?.public_key || !message.trim() || sending || (!!linkInfo?.opsec?.passphrase_required && !passphrase)}>
               {sending ? 'Sending...' : 'Send Message'}
             </AIMButton>
           </ButtonBar>
