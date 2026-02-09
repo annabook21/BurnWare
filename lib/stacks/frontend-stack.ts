@@ -56,13 +56,6 @@ export class FrontendStack extends Stack {
 
     const { environment, domainName, certificateArn, webAclArn, alb, hostedZone, appSyncHttpDns, appSyncRealtimeDns, appSyncApiKey } = props;
 
-    const buildEnv = {
-      ...process.env,
-      VITE_APPSYNC_HTTP_DOMAIN: appSyncHttpDns ?? '',
-      VITE_APPSYNC_REALTIME_DOMAIN: appSyncRealtimeDns ?? '',
-      VITE_APPSYNC_API_KEY: appSyncApiKey ?? '',
-    };
-
     // Create S3 bucket for SPA assets
     // https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/deploy-a-react-based-single-page-application-to-amazon-s3-and-cloudfront.html
     this.bucket = new s3.Bucket(this, 'FrontendBucket', {
@@ -195,16 +188,23 @@ export class FrontendStack extends Stack {
 
     // Deploy frontend build to S3 (builds via Docker or local fallback)
     const frontendPath = path.join(__dirname, '../../frontend');
+    // Runtime config: deploy-time values resolved by CloudFormation.
+    // CDK tokens can't be used as build-time env vars (they're unresolved strings
+    // like "${Token[...]}" at synth time). Instead, deploy a runtime-config.json
+    // that the SPA fetches at page load. Local dev falls back to .env values.
+    const runtimeConfig = s3deploy.Source.jsonData('runtime-config.json', {
+      appSync: {
+        httpDns: appSyncHttpDns ?? '',
+        realtimeDns: appSyncRealtimeDns ?? '',
+        apiKey: appSyncApiKey ?? '',
+      },
+    });
+
     new s3deploy.BucketDeployment(this, 'FrontendDeploy', {
       sources: [
         s3deploy.Source.asset(frontendPath, {
           bundling: {
             image: DockerImage.fromRegistry('node:20-alpine'),
-            environment: {
-              VITE_APPSYNC_HTTP_DOMAIN: appSyncHttpDns ?? '',
-              VITE_APPSYNC_REALTIME_DOMAIN: appSyncRealtimeDns ?? '',
-              VITE_APPSYNC_API_KEY: appSyncApiKey ?? '',
-            },
             command: [
               'sh',
               '-c',
@@ -216,11 +216,7 @@ export class FrontendStack extends Stack {
                 try {
                   const hasLock = fs.existsSync(path.join(frontendPath, 'package-lock.json'));
                   execSync(hasLock ? 'npm ci' : 'npm install', { cwd: frontendPath, stdio: 'inherit' });
-                  execSync('npm run build', {
-                    cwd: frontendPath,
-                    stdio: 'inherit',
-                    env: buildEnv,
-                  });
+                  execSync('npm run build', { cwd: frontendPath, stdio: 'inherit' });
                   const distPath = path.join(frontendPath, 'dist');
                   if (fs.existsSync(distPath)) {
                     execSync(`cp -r "${distPath}"/* "${outputDir}/"`, { stdio: 'inherit' });
@@ -234,6 +230,7 @@ export class FrontendStack extends Stack {
             },
           },
         }),
+        runtimeConfig,
       ],
       destinationBucket: this.bucket,
       distribution: this.distribution,
