@@ -4,6 +4,12 @@
  * Bypasses Amplify's events.connect() due to a bug where its subscribe
  * message includes extra fields that AppSync Events rejects.
  * No-ops gracefully when AppSync is not configured (env vars empty).
+ *
+ * Optimizations (per AWS AppSync Events best practices):
+ * - Single shared WebSocket for all subscriptions to reduce connection overhead
+ * - Jittered exponential backoff on reconnect
+ * - Keepalive tracking; close if no "ka" within connectionTimeoutMs
+ * - Debounced event callback to avoid refetch storms when events arrive in quick succession
  */
 
 import { useEffect, useRef } from 'react';
@@ -12,6 +18,8 @@ import { awsConfig } from '../config/aws-config';
 const KEEPALIVE_BUFFER_MS = 5_000;
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+/** Debounce rapid events so one refetch covers a burst (e.g. multiple messages in <300ms) */
+const EVENT_DEBOUNCE_MS = 280;
 
 /** Shared singleton WebSocket connection across all hook instances */
 let sharedSocket: WebSocket | null = null;
@@ -21,8 +29,12 @@ let keepAliveTimeoutId: ReturnType<typeof setTimeout> | undefined;
 let connectionTimeoutMs = 300_000; // default 5 min, updated from connection_ack
 let reconnectAttempt = 0;
 
-// Listeners keyed by subscription id
-const subscriptions = new Map<string, { channel: string; callback: (data: unknown) => void }>();
+interface SubEntry {
+  channel: string;
+  callback: (data: unknown) => void;
+  cancel?: () => void;
+}
+const subscriptions = new Map<string, SubEntry>();
 // Pending subscribes waiting for socket to be ready
 const pendingSubscribes = new Set<string>();
 
@@ -54,6 +66,28 @@ function getAuthHeaders(): Record<string, string> {
 function normalizeChannel(channel: string): string {
   const withSlash = channel.startsWith('/') ? channel : `/${channel}`;
   return withSlash.replace(/_/g, '-');
+}
+
+/**
+ * Debounced invoker: waits delayMs after the last call before invoking fn.
+ * Returns a function with .cancel() to clear any pending invocation.
+ */
+function debounce<T>(fn: (arg: T) => void, delayMs: number): ((arg: T) => void) & { cancel: () => void } {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const debounced = (arg: T) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timeoutId = undefined;
+      fn(arg);
+    }, delayMs);
+  };
+  debounced.cancel = () => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+  return debounced;
 }
 
 function resetKeepAlive(timeoutMs: number): void {
@@ -177,6 +211,12 @@ function ensureConnection(): void {
         break;
       }
 
+      case 'broadcast_error': {
+        const sub = subscriptions.get(msg.id);
+        console.warn('AppSync broadcast error:', msg.errors, 'channel:', sub?.channel);
+        break;
+      }
+
       case 'connection_error':
         console.warn('AppSync connection error:', msg.errors);
         break;
@@ -222,15 +262,19 @@ export function useAppSyncEvents(
     const subId = `sub-${++subCounter}`;
     subIdRef.current = subId;
 
+    const debouncedOnEvent = debounce((data: unknown) => onEventRef.current(data), EVENT_DEBOUNCE_MS);
     subscriptions.set(subId, {
       channel,
-      callback: (data: unknown) => onEventRef.current(data),
+      callback: debouncedOnEvent,
+      cancel: () => debouncedOnEvent.cancel(),
     });
 
     ensureConnection();
     sendSubscribe(subId, channel);
 
     return () => {
+      const sub = subscriptions.get(subId);
+      sub?.cancel?.();
       sendUnsubscribe(subId);
       subscriptions.delete(subId);
       pendingSubscribes.delete(subId);

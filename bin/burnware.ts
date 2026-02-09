@@ -110,7 +110,7 @@ appStack.addDependency(authStack);
 appStack.addDependency(dataStack);
 appStack.addDependency(appSyncStack);
 
-// Frontend Stack (depends on Auth + App for Cognito and API URL)
+// Frontend Stack (depends on Auth + App + AppSync for Cognito, API URL, real-time)
 const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentName}`, {
   env: config.env,
   environment: environmentName,
@@ -122,11 +122,15 @@ const frontendStack = new FrontendStack(app, `BurnWare-Frontend-${environmentNam
   apiBaseUrl: '', // Same-origin: CloudFront proxies /api/* to ALB, avoids mixed content
   alb: appStack.alb,
   hostedZone: dnsStack?.hostedZone,
+  appSyncHttpDns: appSyncStack.httpDns,
+  appSyncRealtimeDns: appSyncStack.realtimeDns,
+  appSyncApiKey: appSyncStack.apiKey,
   description: 'CloudFront distribution and S3 bucket for SPA',
 });
 frontendStack.addDependency(wafStack);
 frontendStack.addDependency(authStack);
 frontendStack.addDependency(appStack);
+frontendStack.addDependency(appSyncStack);
 if (dnsStack) frontendStack.addDependency(dnsStack);
 
 // Observability Stack

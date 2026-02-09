@@ -38,6 +38,12 @@ export interface FrontendStackProps extends StackProps {
   alb?: elbv2.IApplicationLoadBalancer;
   /** Route 53 hosted zone for DNS validation and alias records */
   hostedZone?: route53.IHostedZone;
+  /** AppSync Events HTTP domain (for real-time publish) */
+  appSyncHttpDns?: string;
+  /** AppSync Events WebSocket domain (for real-time subscribe) */
+  appSyncRealtimeDns?: string;
+  /** AppSync Events API key (browser auth for subscriptions) */
+  appSyncApiKey?: string;
 }
 
 export class FrontendStack extends Stack {
@@ -48,7 +54,14 @@ export class FrontendStack extends Stack {
   constructor(scope: Construct, id: string, props: FrontendStackProps) {
     super(scope, id, props);
 
-    const { environment, domainName, certificateArn, webAclArn, alb, hostedZone } = props;
+    const { environment, domainName, certificateArn, webAclArn, alb, hostedZone, appSyncHttpDns, appSyncRealtimeDns, appSyncApiKey } = props;
+
+    const buildEnv = {
+      ...process.env,
+      VITE_APPSYNC_HTTP_DOMAIN: appSyncHttpDns ?? '',
+      VITE_APPSYNC_REALTIME_DOMAIN: appSyncRealtimeDns ?? '',
+      VITE_APPSYNC_API_KEY: appSyncApiKey ?? '',
+    };
 
     // Create S3 bucket for SPA assets
     // https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/deploy-a-react-based-single-page-application-to-amazon-s3-and-cloudfront.html
@@ -187,6 +200,11 @@ export class FrontendStack extends Stack {
         s3deploy.Source.asset(frontendPath, {
           bundling: {
             image: DockerImage.fromRegistry('node:20-alpine'),
+            environment: {
+              VITE_APPSYNC_HTTP_DOMAIN: appSyncHttpDns ?? '',
+              VITE_APPSYNC_REALTIME_DOMAIN: appSyncRealtimeDns ?? '',
+              VITE_APPSYNC_API_KEY: appSyncApiKey ?? '',
+            },
             command: [
               'sh',
               '-c',
@@ -201,6 +219,7 @@ export class FrontendStack extends Stack {
                   execSync('npm run build', {
                     cwd: frontendPath,
                     stdio: 'inherit',
+                    env: buildEnv,
                   });
                   const distPath = path.join(frontendPath, 'dist');
                   if (fs.existsSync(distPath)) {
