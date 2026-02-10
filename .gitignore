@@ -35,3 +35,6 @@ yarn-error.log*
 # Build
 dist
 build
+
+# Reference assets (not part of the project)
+im_20191103/

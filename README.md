@@ -197,6 +197,7 @@ aws ssm start-session --target i-INSTANCE-ID
 | Document | Description |
 |----------|-------------|
 | [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md) | Full technical reference — database schema, API details, infrastructure, design decisions |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Step-by-step deployment guide |
 | [architecture-diagram.drawio](architecture-diagram.drawio) | Editable AWS architecture diagram (open in [draw.io](https://app.diagrams.net)) |
 | [CLAUDE.md](CLAUDE.md) | AI assistant instructions and build commands |
 
