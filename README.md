@@ -2,7 +2,7 @@
 
 Anonymous inbox system with short links, QR codes, end-to-end encryption, and burnable threads. Built on AWS CDK with a NAT-free architecture.
 
-![BurnWare AWS Architecture](architecture-diagram2.drawio.svg)
+![BurnWare AWS Architecture](architecture-diagram.drawio.final.svg)
 
 ## How It Works
 
