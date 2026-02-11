@@ -32,7 +32,7 @@ export const MONITORING_CONFIG = {
 
 // WAF Configuration
 export const WAF_CONFIG = {
-  rateLimitThreshold: 10, // requests per 5 minutes
+  rateLimitThreshold: 2000, // requests per 5 minutes (dashboard polls ~40/5min)
   captchaImmunityTime: 300, // seconds
 } as const;
 
