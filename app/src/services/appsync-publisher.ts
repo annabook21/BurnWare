@@ -18,6 +18,29 @@ interface MessageEvent {
   timestamp: number;
 }
 
+interface RoomKeyNeededEvent {
+  room_id: string;
+  participant_id: string;
+  anonymous_id: string;
+  display_name?: string;
+  public_key: string;
+  timestamp: number;
+}
+
+interface KeyDistributedEvent {
+  room_id: string;
+  participant_id: string;
+  anonymous_id: string;
+  timestamp: number;
+}
+
+interface RoomMessageEvent {
+  room_id: string;
+  message_id: string;
+  anonymous_id: string;
+  timestamp: number;
+}
+
 export class AppSyncPublisher {
   private _lambdaClient: LambdaClient | undefined;
 
@@ -62,6 +85,82 @@ export class AppSyncPublisher {
       this.publish(`/messages/thread/${this.channelSafe(threadId)}`, payload),
       this.publish(`/messages/link/${this.channelSafe(linkId)}`, payload),
     ]);
+  }
+
+  /**
+   * Notify room creator that a participant needs their group key wrapped.
+   * Used for auto-approve rooms where the server can't wrap keys (E2E).
+   */
+  async publishRoomKeyNeeded(
+    roomId: string,
+    participantId: string,
+    anonymousId: string,
+    publicKey: string,
+    displayName?: string
+  ): Promise<void> {
+    if (!this.enabled) return;
+
+    const event: RoomKeyNeededEvent = {
+      room_id: roomId,
+      participant_id: participantId,
+      anonymous_id: anonymousId,
+      public_key: publicKey,
+      display_name: displayName,
+      timestamp: Date.now(),
+    };
+
+    const payload = JSON.stringify(event);
+
+    // Publish to room channel — creator's dashboard subscribes
+    await this.publish(`/rooms/room/${this.channelSafe(roomId)}`, payload);
+  }
+
+  /**
+   * Notify participant that their wrapped group key is ready.
+   * Allows participant to stop polling and enter the room immediately.
+   */
+  async publishKeyDistributed(
+    roomId: string,
+    participantId: string,
+    anonymousId: string
+  ): Promise<void> {
+    if (!this.enabled) return;
+
+    const event: KeyDistributedEvent = {
+      room_id: roomId,
+      participant_id: participantId,
+      anonymous_id: anonymousId,
+      timestamp: Date.now(),
+    };
+
+    const payload = JSON.stringify(event);
+
+    // Publish to participant-specific channel — joining participant subscribes
+    await this.publish(`/rooms/participant/${this.channelSafe(anonymousId)}`, payload);
+  }
+
+  /**
+   * Notify room participants that a new message was sent.
+   * Allows real-time message updates without polling.
+   */
+  async publishRoomMessage(
+    roomId: string,
+    messageId: string,
+    anonymousId: string
+  ): Promise<void> {
+    if (!this.enabled) return;
+
+    const event: RoomMessageEvent = {
+      room_id: roomId,
+      message_id: messageId,
+      anonymous_id: anonymousId,
+      timestamp: Date.now(),
+    };
+
+    const payload = JSON.stringify(event);
+
+    // Publish to room channel — all participants subscribe
+    await this.publish(`/rooms/messages/${this.channelSafe(roomId)}`, payload);
   }
 
   private async publish(channel: string, eventPayload: string): Promise<void> {

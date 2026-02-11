@@ -302,3 +302,76 @@ export function useAppSyncEvents(
     };
   }, [channel]);
 }
+
+/**
+ * Subscribe to multiple AppSync Events channels simultaneously.
+ * Each channel shares the same WebSocket connection and callback.
+ * Channels are identified by the callback receiving events from all.
+ */
+export function useAppSyncMultiChannelEvents(
+  channels: string[],
+  onEvent: (data: unknown, channel: string) => void
+): void {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+  const subIdsRef = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const { realtimeDns } = awsConfig.appSync;
+    if (!realtimeDns || channels.length === 0) return;
+
+    const currentSubIds = new Map<string, string>();
+    const existingSubIds = subIdsRef.current;
+
+    // Add subscriptions for new channels
+    for (const channel of channels) {
+      // Reuse existing subscription if channel already subscribed
+      if (existingSubIds.has(channel)) {
+        const existingSubId = existingSubIds.get(channel)!;
+        currentSubIds.set(channel, existingSubId);
+        continue;
+      }
+
+      const subId = `sub-${++subCounter}`;
+      currentSubIds.set(channel, subId);
+
+      const debouncedOnEvent = debounce(
+        (data: unknown) => onEventRef.current(data, channel),
+        EVENT_DEBOUNCE_MS
+      );
+      subscriptions.set(subId, {
+        channel,
+        callback: debouncedOnEvent,
+        cancel: () => debouncedOnEvent.cancel(),
+      });
+
+      ensureConnection();
+      sendSubscribe(subId, channel);
+    }
+
+    // Remove subscriptions for channels no longer needed
+    for (const [channel, subId] of existingSubIds) {
+      if (!currentSubIds.has(channel)) {
+        const sub = subscriptions.get(subId);
+        sub?.cancel?.();
+        sendUnsubscribe(subId);
+        subscriptions.delete(subId);
+        pendingSubscribes.delete(subId);
+      }
+    }
+
+    subIdsRef.current = currentSubIds;
+
+    return () => {
+      for (const [, subId] of currentSubIds) {
+        const sub = subscriptions.get(subId);
+        sub?.cancel?.();
+        sendUnsubscribe(subId);
+        subscriptions.delete(subId);
+        pendingSubscribes.delete(subId);
+      }
+      subIdsRef.current = new Map();
+      cleanupIfEmpty();
+    };
+  }, [channels.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+}
