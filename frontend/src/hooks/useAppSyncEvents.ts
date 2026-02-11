@@ -306,7 +306,8 @@ export function useAppSyncEvents(
 /**
  * Subscribe to multiple AppSync Events channels simultaneously.
  * Each channel shares the same WebSocket connection and callback.
- * Channels are identified by the callback receiving events from all.
+ * Per AWS best practices: handles dynamic channel lists and cleans up
+ * when channels become empty (e.g., tab hidden for battery saving).
  */
 export function useAppSyncMultiChannelEvents(
   channels: string[],
@@ -318,10 +319,23 @@ export function useAppSyncMultiChannelEvents(
 
   useEffect(() => {
     const { realtimeDns } = awsConfig.appSync;
-    if (!realtimeDns || channels.length === 0) return;
+    const existingSubIds = subIdsRef.current;
+
+    // If AppSync not configured, clean up any existing and return
+    if (!realtimeDns) {
+      for (const [, subId] of existingSubIds) {
+        const sub = subscriptions.get(subId);
+        sub?.cancel?.();
+        sendUnsubscribe(subId);
+        subscriptions.delete(subId);
+        pendingSubscribes.delete(subId);
+      }
+      subIdsRef.current = new Map();
+      cleanupIfEmpty();
+      return;
+    }
 
     const currentSubIds = new Map<string, string>();
-    const existingSubIds = subIdsRef.current;
 
     // Add subscriptions for new channels
     for (const channel of channels) {
@@ -349,7 +363,7 @@ export function useAppSyncMultiChannelEvents(
       sendSubscribe(subId, channel);
     }
 
-    // Remove subscriptions for channels no longer needed
+    // Remove subscriptions for channels no longer needed (including when channels becomes empty)
     for (const [channel, subId] of existingSubIds) {
       if (!currentSubIds.has(channel)) {
         const sub = subscriptions.get(subId);
@@ -361,6 +375,11 @@ export function useAppSyncMultiChannelEvents(
     }
 
     subIdsRef.current = currentSubIds;
+
+    // Clean up WebSocket if no subscriptions remain
+    if (currentSubIds.size === 0) {
+      cleanupIfEmpty();
+    }
 
     return () => {
       for (const [, subId] of currentSubIds) {
