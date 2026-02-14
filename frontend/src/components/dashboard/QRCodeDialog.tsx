@@ -16,6 +16,8 @@ interface QRCodeDialogProps {
   linkId: string;
   linkName: string;
   qrCodeUrl?: string;
+  /** If set, use this URL for QR and copy instead of building from linkId (e.g. broadcast read URL) */
+  displayUrl?: string;
   onClose: () => void;
   onDelete?: (linkId: string) => void;
 }
@@ -91,13 +93,14 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
   linkId,
   linkName,
   qrCodeUrl: _qrCodeUrl,
+  displayUrl,
   onClose,
   onDelete,
 }) => {
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const baseUrl =
     awsConfig.api.baseUrl.replace('/api', '') || window.location.origin;
-  const fullUrl = `${baseUrl}/l/${linkId}`;
+  const fullUrl = displayUrl ?? `${baseUrl}/l/${linkId}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullUrl);

@@ -1,17 +1,23 @@
 /**
  * E2EE Module
  * ECDH P-256 key agreement + AES-256-GCM encryption using Web Crypto API.
- * No external dependencies.
+ * No external dependencies (except shared crypto-kdf utility).
  *
  * Ciphertext format (binary, then base64-encoded):
- *   0x01 || ephemeralPublicKey[65] || iv[12] || aes-gcm-ciphertext+tag[...]
+ *   version[1] || ephemeralPublicKey[65] || iv[12] || aes-gcm-ciphertext+tag[...]
  *
- * File size: ~190 lines
+ * V1 (0x01): ECDH shared secret used directly as AES key (legacy)
+ * V2 (0x02): ECDH → HKDF-SHA256 → AES key (per NIST SP 800-56C / RFC 5869)
  */
+
+import { deriveAESKeyFromECDH } from './crypto-kdf';
 
 const ECDH_ALGO: EcKeyGenParams = { name: 'ECDH', namedCurve: 'P-256' };
 const AES_ALGO: AesKeyGenParams = { name: 'AES-GCM', length: 256 };
-const VERSION = 0x01;
+const VERSION_V1 = 0x01;
+const VERSION_V2 = 0x02;
+const CURRENT_VERSION = VERSION_V2;
+const HKDF_INFO = new TextEncoder().encode('burnware-e2ee-v2');
 const EPK_LENGTH = 65; // P-256 uncompressed raw public key
 const IV_LENGTH = 12;
 const PBKDF2_ITERATIONS = 600_000;
@@ -35,7 +41,7 @@ export async function generateKeyPair(): Promise<{
   publicKeyBase64: string;
   privateKeyJwk: JsonWebKey;
 }> {
-  const keyPair = await crypto.subtle.generateKey(ECDH_ALGO, true, ['deriveKey']);
+  const keyPair = await crypto.subtle.generateKey(ECDH_ALGO, true, ['deriveBits', 'deriveKey']);
   const publicKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey);
   const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
   return { publicKeyBase64: bufferToBase64(publicKeyRaw), privateKeyJwk };
@@ -55,19 +61,16 @@ export async function encrypt(
   ephemeralPrivateKeyJwk: JsonWebKey;
 }> {
   // Generate ephemeral key pair
-  const ephemeral = await crypto.subtle.generateKey(ECDH_ALGO, true, ['deriveKey']);
+  const ephemeral = await crypto.subtle.generateKey(ECDH_ALGO, true, ['deriveBits', 'deriveKey']);
 
   // Import recipient public key
   const recipientPubRaw = base64ToBuffer(recipientPublicKeyBase64);
   const recipientPubKey = await crypto.subtle.importKey('raw', recipientPubRaw, ECDH_ALGO, false, []);
 
-  // Derive AES-256-GCM key via ECDH
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: recipientPubKey },
-    ephemeral.privateKey,
-    AES_ALGO,
-    false,
-    ['encrypt'],
+  // Derive AES-256-GCM key via ECDH → HKDF (V2)
+  const aesKey = await deriveAESKeyFromECDH(
+    recipientPubKey, ephemeral.privateKey, ['encrypt'],
+    { useHkdf: true, info: HKDF_INFO },
   );
 
   // Encrypt
@@ -81,7 +84,7 @@ export async function encrypt(
 
   // Build blob: version || epk || iv || ct+tag
   const blob = new Uint8Array(1 + EPK_LENGTH + IV_LENGTH + ctBuf.byteLength);
-  blob[0] = VERSION;
+  blob[0] = CURRENT_VERSION;
   blob.set(epkRaw, 1);
   blob.set(iv, 1 + EPK_LENGTH);
   blob.set(new Uint8Array(ctBuf), 1 + EPK_LENGTH + IV_LENGTH);
@@ -102,8 +105,9 @@ export async function decrypt(
   privateKeyJwk: JsonWebKey,
 ): Promise<string> {
   const blob = new Uint8Array(base64ToBuffer(ciphertextBase64));
+  const version = blob[0];
 
-  if (blob[0] !== VERSION) throw new Error('Unknown E2EE version');
+  if (version !== VERSION_V1 && version !== VERSION_V2) throw new Error('Unknown E2EE version');
   if (blob.length < 1 + EPK_LENGTH + IV_LENGTH + 1) throw new Error('Ciphertext too short');
 
   const epkRaw = blob.slice(1, 1 + EPK_LENGTH);
@@ -112,15 +116,12 @@ export async function decrypt(
 
   // Import keys
   const epk = await crypto.subtle.importKey('raw', epkRaw, ECDH_ALGO, false, []);
-  const myPriv = await crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_ALGO, false, ['deriveKey']);
+  const myPriv = await crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_ALGO, false, ['deriveBits', 'deriveKey']);
 
-  // Derive same AES key
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: epk },
-    myPriv,
-    AES_ALGO,
-    false,
-    ['decrypt'],
+  // Derive AES key: V2 uses HKDF, V1 uses direct ECDH (legacy)
+  const aesKey = await deriveAESKeyFromECDH(
+    epk, myPriv, ['decrypt'],
+    { useHkdf: version === VERSION_V2, info: HKDF_INFO },
   );
 
   const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ct);
@@ -173,7 +174,7 @@ export async function wrapPrivateKey(
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
   const wrappingKey = await deriveWrappingKey(passphrase, salt, ['wrapKey']);
 
-  const ecPriv = await crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_ALGO, true, ['deriveKey']);
+  const ecPriv = await crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_ALGO, true, ['deriveBits', 'deriveKey']);
   const wrapped = await crypto.subtle.wrapKey('jwk', ecPriv, wrappingKey, { name: 'AES-GCM', iv });
 
   return {
@@ -204,7 +205,7 @@ export async function unwrapPrivateKey(
     { name: 'AES-GCM', iv },
     ECDH_ALGO,
     true,
-    ['deriveKey'],
+    ['deriveBits', 'deriveKey'],
   );
 
   return crypto.subtle.exportKey('jwk', ecPriv);

@@ -49,6 +49,14 @@ export class AppSyncStack extends Stack {
     // Channels: messages/thread/{thread_id}, messages/link/{link_id}
     this.eventApi.addChannelNamespace('messages');
 
+    // Channel namespace for room notifications
+    // Channels: rooms/room/{room_id} - for key distribution events
+    this.eventApi.addChannelNamespace('rooms');
+
+    // Channel namespace for broadcast channel notifications
+    // Channels: broadcast/channel/{channel_id} - new post events
+    this.eventApi.addChannelNamespace('broadcast');
+
     this.httpDns = this.eventApi.httpDns;
     this.realtimeDns = this.eventApi.realtimeDns;
     this.apiArn = this.eventApi.apiArn;

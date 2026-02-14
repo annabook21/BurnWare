@@ -23,6 +23,24 @@ import { TagUtils } from '../utils/tags';
 import { NamingUtils } from '../utils/naming';
 import { CLOUDFRONT_CONFIG } from '../config/constants';
 
+/**
+ * CloudFront Function: SPA URI rewrite
+ * Rewrites non-file paths to /index.html so S3 never returns 404 for SPA routes.
+ * This replaces distribution-level custom error responses, which would also
+ * intercept 404/403 from the /api/* ALB origin and mask API errors with HTML.
+ */
+const SPA_REWRITE_FUNCTION_CODE = `
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri.includes('.')) {
+    return request;
+  }
+  request.uri = '/index.html';
+  return request;
+}
+`;
+
 export interface FrontendStackProps extends StackProps {
   environment: string;
   domainName: string;
@@ -107,6 +125,18 @@ export class FrontendStack extends Stack {
         ? certificatemanager.Certificate.fromCertificateArn(this, 'Certificate', certificateArn)
         : undefined;
 
+    // CloudFront Function for SPA routing on the default (S3) behavior only.
+    // Rewrites non-file URIs to /index.html at the viewer-request level so S3
+    // always finds the object. This avoids distribution-level custom error
+    // responses, which would also intercept 404/403 from the /api/* ALB origin
+    // and mask API errors with the SPA shell.
+    const spaRewriteFn = new cloudfront.Function(this, 'SpaRewriteFunction', {
+      functionName: NamingUtils.getResourceName('spa-rewrite', environment),
+      code: cloudfront.FunctionCode.fromInline(SPA_REWRITE_FUNCTION_CODE),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: 'Rewrite SPA routes to /index.html',
+    });
+
     // Create CloudFront distribution
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `BurnWare SPA - ${environment}`,
@@ -126,6 +156,10 @@ export class FrontendStack extends Stack {
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
         compress: true,
         cachePolicy: indexCachePolicy,
+        functionAssociations: [{
+          function: spaRewriteFn,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
       },
       additionalBehaviors: {
         '/static/*': {
@@ -149,20 +183,6 @@ export class FrontendStack extends Stack {
           },
         } : {}),
       },
-      errorResponses: [
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: Duration.seconds(300),
-        },
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: Duration.seconds(300),
-        },
-      ],
       webAclId: webAclArn,
     });
 

@@ -8,11 +8,13 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary, FallbackProps } from 'react-error-boundary';
 import { ThemeProvider } from 'styled-components';
+import '98.css';
 import { GlobalStyles } from './theme/global-styles';
 import { aimTheme } from './theme/aim-theme';
 import { Dashboard } from './pages/Dashboard';
 import { SendPage } from './pages/SendPage';
 import { ThreadPage } from './pages/ThreadPage';
+import { BroadcastFeedPage } from './pages/BroadcastFeedPage';
 import { LoginWindow } from './components/auth/LoginWindow';
 import styled from 'styled-components';
 import { Toaster } from 'sonner';
@@ -140,6 +142,9 @@ const App: React.FC = () => {
 
             {/* Public route - anonymous sender checks replies (possession-based: URL = secret) */}
             <Route path="/thread/:threadId" element={<ThreadPage />} />
+
+            {/* Public route - broadcast feed (read-only, no auth) */}
+            <Route path="/b/:channelId" element={<BroadcastFeedPage />} />
 
             {/* Protected dashboard route */}
             <Route

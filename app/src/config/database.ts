@@ -6,7 +6,11 @@
 
 import { Pool, PoolConfig } from 'pg';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { readFileSync, existsSync } from 'fs';
 import { logger } from './logger';
+
+// RDS CA bundle path - downloaded from https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+const RDS_CA_BUNDLE_PATH = '/app/certs/rds-ca-bundle.pem';
 
 interface DbCredentials {
   host: string;
@@ -68,9 +72,15 @@ class DatabaseConfig {
       database: credentials.dbname,
       user: credentials.username,
       password: credentials.password,
-      ssl: {
-        rejectUnauthorized: false, // RDS CA not in Node.js CA bundle; connection is within private VPC
-      },
+      ssl: existsSync(RDS_CA_BUNDLE_PATH)
+        ? {
+            rejectUnauthorized: true,
+            ca: readFileSync(RDS_CA_BUNDLE_PATH).toString(),
+          }
+        : {
+            // Fallback for local dev or if cert not deployed yet
+            rejectUnauthorized: false,
+          },
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,

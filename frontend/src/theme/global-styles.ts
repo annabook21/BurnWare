@@ -8,9 +8,6 @@ import { createGlobalStyle } from 'styled-components';
 import { aimTheme } from './aim-theme';
 
 export const GlobalStyles = createGlobalStyle`
-  /* Import 98.css for Windows 98 aesthetic */
-  @import url('98.css');
-
   * {
     box-sizing: border-box;
     margin: 0;

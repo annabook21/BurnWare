@@ -9,14 +9,18 @@ import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
 import { BuddyListItem } from './BuddyListItem';
 import { aimTheme } from '../../theme/aim-theme';
-import type { Link, StatusType } from '../../types';
+import type { Link, StatusType, BroadcastChannel as BroadcastChannelType } from '../../types';
 
 interface BuddyListProps {
   links: Link[];
+  channels?: BroadcastChannelType[];
   newMessageLinkIds?: Set<string>;
   onLinkClick: (linkId: string) => void;
   onLinkContextMenu?: (linkId: string, e: React.MouseEvent) => void;
+  onChannelClick?: (channelId: string) => void;
+  onChannelContextMenu?: (channelId: string, e: React.MouseEvent) => void;
   onCreateLink: () => void;
+  onCreateChannel?: () => void;
   onSettings?: () => void;
   initialX?: number;
   initialY?: number;
@@ -137,27 +141,43 @@ const getStatus = (link: Link): StatusType => {
   return 'active';
 };
 
+const getChannelStatus = (ch: BroadcastChannelType): StatusType => {
+  if (ch.burned) return 'expired';
+  return 'active';
+};
+
 export const BuddyList: React.FC<BuddyListProps> = ({
   links,
+  channels = [],
   newMessageLinkIds,
   onLinkClick,
   onLinkContextMenu,
+  onChannelClick,
+  onChannelContextMenu,
   onCreateLink,
+  onCreateChannel,
   onSettings,
   initialX = 50,
   initialY = 50,
   zIndex = 100,
   onFocus,
 }) => {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active']));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['active', 'broadcast']));
 
   const handleLinkClick = useCallback((linkId: string) => {
     onLinkClick(linkId);
   }, [onLinkClick]);
 
+  const handleChannelClick = useCallback((channelId: string) => {
+    onChannelClick?.(channelId);
+  }, [onChannelClick]);
+
   const activeLinks = links.filter((l) => getStatus(l) === 'active');
   const expiringLinks = links.filter((l) => getStatus(l) === 'expiring');
   const expiredLinks = links.filter((l) => getStatus(l) === 'expired');
+
+  const activeChannels = channels.filter((c) => !c.burned);
+  const expiredChannels = channels.filter((c) => c.burned);
 
   const toggleGroup = (group: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -254,10 +274,67 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
               />
             ))}
+
+          {/* Broadcast Section */}
+          <GroupHeader
+            onClick={() => toggleGroup('broadcast')}
+            aria-expanded={expandedGroups.has('broadcast')}
+            aria-controls="group-broadcast"
+            style={{ marginTop: '8px', borderTop: `2px solid ${aimTheme.colors.darkGray}` }}
+          >
+            <span>{expandedGroups.has('broadcast') ? '▼' : '▶'}</span>
+            <span>📡 Broadcast ({activeChannels.length})</span>
+          </GroupHeader>
+          {expandedGroups.has('broadcast') && (
+            <>
+              {activeChannels.map((ch) => (
+                <BuddyListItem
+                  key={ch.channel_id}
+                  name={ch.display_name}
+                  status={getChannelStatus(ch)}
+                  messageCount={0}
+                  isRoom
+                  onClick={() => handleChannelClick(ch.channel_id)}
+                  onContextMenu={onChannelContextMenu ? (e) => onChannelContextMenu(ch.channel_id, e) : undefined}
+                />
+              ))}
+              {onCreateChannel && activeChannels.length === 0 && (
+                <div style={{ padding: '8px', fontSize: aimTheme.fonts.size.small, color: aimTheme.colors.darkGray, textAlign: 'center' }}>
+                  No channels yet
+                </div>
+              )}
+            </>
+          )}
+
+          {expiredChannels.length > 0 && (
+            <>
+              <GroupHeader
+                onClick={() => toggleGroup('expiredChannels')}
+                aria-expanded={expandedGroups.has('expiredChannels')}
+                aria-controls="group-expired-channels"
+              >
+                <span>{expandedGroups.has('expiredChannels') ? '▼' : '▶'}</span>
+                <span>Burned channels ({expiredChannels.length})</span>
+              </GroupHeader>
+              {expandedGroups.has('expiredChannels') &&
+                expiredChannels.map((ch) => (
+                  <BuddyListItem
+                    key={ch.channel_id}
+                    name={ch.display_name}
+                    status="expired"
+                    messageCount={0}
+                    isRoom
+                    onClick={() => handleChannelClick(ch.channel_id)}
+                    onContextMenu={onChannelContextMenu ? (e) => onChannelContextMenu(ch.channel_id, e) : undefined}
+                  />
+                ))}
+            </>
+          )}
         </ScrollArea>
 
         <ActionButtons>
           <CreateButton onClick={onCreateLink}>✨ New Link</CreateButton>
+          {onCreateChannel && <Button onClick={onCreateChannel}>📡 New channel</Button>}
           {onSettings && <Button onClick={onSettings}>Settings</Button>}
         </ActionButtons>
       </BuddyContainer>

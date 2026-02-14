@@ -16,6 +16,7 @@ interface BuddyListItemProps {
   status: StatusType;
   messageCount?: number;
   hasNewMessages?: boolean;
+  isRoom?: boolean;
   onClick: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }
@@ -70,11 +71,17 @@ const MessageBadge = styled.span<{ $pulsing?: boolean }>`
   ${(props) => props.$pulsing && `animation: badgePulse 1s ease-in-out infinite;`}
 `;
 
+const RoomIcon = styled.span<{ $expired?: boolean }>`
+  font-size: 12px;
+  opacity: ${(props) => (props.$expired ? 0.5 : 1)};
+`;
+
 export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
   name,
   status,
   messageCount = 0,
   hasNewMessages = false,
+  isRoom = false,
   onClick,
   onContextMenu,
 }) => {
@@ -83,11 +90,17 @@ export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
       <style>{pulseKeyframes}</style>
       <ItemContainer status={status} onClick={onClick} onContextMenu={onContextMenu}>
         <ItemLeft>
-          <StatusIndicator status={status} size={14} />
+          {isRoom ? (
+            <RoomIcon $expired={status === 'expired'}>🔒</RoomIcon>
+          ) : (
+            <StatusIndicator status={status} size={14} />
+          )}
           <ItemName>{name}</ItemName>
         </ItemLeft>
         {messageCount > 0 && (
-          <MessageBadge $pulsing={hasNewMessages}>{messageCount}</MessageBadge>
+          <MessageBadge $pulsing={hasNewMessages}>
+            {isRoom ? `👥${messageCount}` : messageCount}
+          </MessageBadge>
         )}
       </ItemContainer>
     </>

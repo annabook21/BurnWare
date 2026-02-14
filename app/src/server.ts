@@ -24,13 +24,16 @@ export function createServer(): Express {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"], // Required for styled-components
+          imgSrc: ["'self'", 'data:', 'https://burnware-*.s3.amazonaws.com'],
+          connectSrc: ["'self'", 'https://cognito-idp.us-east-1.amazonaws.com'],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
           frameSrc: ["'none'"],
+          frameAncestors: ["'none'"], // Clickjacking protection
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
         },
       },
       hsts: {

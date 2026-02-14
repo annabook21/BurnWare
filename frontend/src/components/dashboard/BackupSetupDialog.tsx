@@ -12,7 +12,8 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { wrapPrivateKey } from '../../utils/e2ee';
-import { getAllLinkKeys } from '../../utils/key-store';
+import { getAllLinkKeys, migrateKeysToVault } from '../../utils/key-store';
+import { isVaultConfigured, setupVault } from '../../utils/key-vault';
 
 interface BackupSetupDialogProps {
   linkIds: string[];
@@ -141,6 +142,14 @@ export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
       }
 
       localStorage.setItem('bw:backup-configured', 'true');
+
+      // Also initialize the local vault with the same passphrase
+      const vaultConfigured = await isVaultConfigured();
+      if (!vaultConfigured) {
+        await setupVault(passphrase);
+        await migrateKeysToVault();
+      }
+
       toast.success(`${backed} key${backed !== 1 ? 's' : ''} backed up successfully.`);
       onComplete();
     } catch (err) {

@@ -163,6 +163,21 @@ export class AppSyncPublisher {
     await this.publish(`/rooms/messages/${this.channelSafe(roomId)}`, payload);
   }
 
+  /**
+   * Notify broadcast channel subscribers that a new post was added.
+   * Public feed pages subscribe to receive real-time updates.
+   */
+  async publishBroadcastPost(channelId: string): Promise<void> {
+    if (!this.enabled) return;
+
+    const payload = JSON.stringify({
+      channel_id: channelId,
+      timestamp: Date.now(),
+    });
+
+    await this.publish(`/broadcast/channel/${this.channelSafe(channelId)}`, payload);
+  }
+
   private async publish(channel: string, eventPayload: string): Promise<void> {
     try {
       const command = new InvokeCommand({

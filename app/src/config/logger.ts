@@ -15,7 +15,19 @@ const structuredFormat = winston.format.combine(
 );
 
 const logDir = process.env.LOG_DIR || '/opt/burnware/logs';
-const useStdoutOnly = process.env.LOG_TO_STDOUT === 'true';
+// Only use file transports in production when LOG_DIR is set; never when running under Jest
+const defaultLogDir = '/opt/burnware/logs';
+const runningInJest =
+  process.env.NODE_ENV === 'test' ||
+  typeof process.env.JEST_WORKER_ID !== 'undefined' ||
+  (typeof process.argv !== 'undefined' && process.argv.some((arg) => String(arg).includes('jest')));
+let useFileTransports =
+  !runningInJest &&
+  process.env.NODE_ENV === 'production' &&
+  process.env.LOG_DIR &&
+  process.env.LOG_DIR.trim() !== '' &&
+  process.env.LOG_DIR !== defaultLogDir &&
+  process.env.LOG_TO_STDOUT !== 'true';
 
 const consoleTransport = new winston.transports.Console({
   format: process.env.NODE_ENV === 'production'
@@ -25,20 +37,31 @@ const consoleTransport = new winston.transports.Console({
 
 const transports: winston.transport[] = [consoleTransport];
 
-if (!useStdoutOnly) {
-  transports.push(
-    new winston.transports.File({
+// Only add file transports if log dir is writable and not default (never touch /opt/burnware/logs unless explicitly set)
+if (useFileTransports && logDir !== defaultLogDir) {
+  try {
+    require('fs').mkdirSync(logDir, { recursive: true });
+  } catch {
+    useFileTransports = false;
+  }
+}
+if (useFileTransports && logDir !== defaultLogDir) {
+  try {
+    const errTransport = new winston.transports.File({
       filename: `${logDir}/error.log`,
       level: 'error',
-      maxsize: 10485760, // 10MB
+      maxsize: 10485760,
       maxFiles: 5,
-    }),
-    new winston.transports.File({
+    });
+    const appTransport = new winston.transports.File({
       filename: `${logDir}/application.log`,
       maxsize: 10485760,
       maxFiles: 5,
-    }),
-  );
+    });
+    transports.push(errTransport, appTransport);
+  } catch (_err) {
+    // Winston File transport may throw if log dir not writable; fall back to console only
+  }
 }
 
 export const logger = winston.createLogger({

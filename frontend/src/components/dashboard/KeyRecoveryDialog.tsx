@@ -12,6 +12,7 @@ import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { unwrapPrivateKey } from '../../utils/e2ee';
 import { saveLinkKey } from '../../utils/key-store';
+import { isVaultConfigured, isVaultUnlocked, setupVault, initializeVault } from '../../utils/key-vault';
 
 interface KeyRecoveryDialogProps {
   linkId: string;
@@ -121,6 +122,16 @@ export const KeyRecoveryDialog: React.FC<KeyRecoveryDialogProps> = ({
         backup.salt,
         backup.iv,
       );
+
+      // Ensure vault is unlocked so the recovered key gets stored encrypted
+      if (!isVaultUnlocked()) {
+        const configured = await isVaultConfigured();
+        if (configured) {
+          await initializeVault(passphrase);
+        } else {
+          await setupVault(passphrase);
+        }
+      }
 
       await saveLinkKey(linkId, recoveredJwk);
       onRecovered();

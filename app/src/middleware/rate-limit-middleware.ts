@@ -121,3 +121,18 @@ export const unlockRateLimiter = rateLimit({
     return tid ? `unlock:${tid}` : 'unlock:unknown';
   },
 });
+
+/**
+ * Rate limiter for public broadcast feed (GET posts).
+ * Keys by IP; handler does not log IP or identifiers (per broadcast design).
+ */
+export const broadcastPostsRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // 200 reads per 15 min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.ip || 'unknown',
+  handler: (_req: Request, _res: Response) => {
+    throw new RateLimitError('Too many requests. Please try again later.');
+  },
+});

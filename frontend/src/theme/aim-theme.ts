@@ -8,6 +8,7 @@ export const aimTheme = {
   colors: {
     // BurnWare brand colors (from logo)
     brandOrange: '#FF6B35',
+    brandBlue: '#003366',
     fireRed: '#FF4500',
     darkBlue: '#003366',
     flameYellow: '#FFB84D',
@@ -17,6 +18,7 @@ export const aimTheme = {
     blueGradientStart: '#0831D9',
     blueGradientEnd: '#1084D0',
     gray: '#C0C0C0',
+    lightGray: '#E0E0E0',
     darkGray: '#808080',
     white: '#FFFFFF',
     black: '#000000',
@@ -24,9 +26,15 @@ export const aimTheme = {
 
     // Status colors
     active: '#00FF00',
+    green: '#32CD32',
     expiring: '#FFB84D',
     expired: '#808080',
     newMessage: '#FF6B35',
+
+    // UI colors
+    menuHover: '#316AC5',
+    lightYellow: '#FFFDE7',
+    messageOwn: '#DCF8C6',
   },
 
   fonts: {

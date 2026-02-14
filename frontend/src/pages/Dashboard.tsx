@@ -8,6 +8,8 @@ import styled from 'styled-components';
 import { LinksPanel } from '../components/dashboard/LinksPanel';
 import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
 import { BackupSetupDialog } from '../components/dashboard/BackupSetupDialog';
+import { VaultUnlockDialog } from '../components/dashboard/VaultUnlockDialog';
+import { BroadcastChannelWindow } from '../components/aim-ui/BroadcastChannelWindow';
 import { WindowManager } from '../components/aim-ui/WindowManager';
 import { SoundManager } from '../components/aim-ui/SoundManager';
 import { useAIMSounds } from '../hooks/useAIMSounds';
@@ -16,7 +18,8 @@ import { aimTheme } from '../theme/aim-theme';
 import { signOut, getAccessToken } from '../config/cognito-config';
 import apiClient from '../utils/api-client';
 import { endpoints } from '../config/api-endpoints';
-import { getAllLinkKeys } from '../utils/key-store';
+import { getAllLinkKeys, hasCleartextKeys } from '../utils/key-store';
+import { isVaultConfigured, isVaultUnlocked } from '../utils/key-vault';
 
 const Desktop = styled.div`
   width: 100vw;
@@ -94,13 +97,23 @@ interface OpenLink {
   linkName: string;
 }
 
+interface OpenChannel {
+  channelId: string;
+  channelName: string;
+  readUrl: string;
+  postToken?: string;
+  encryptionKey?: string;
+}
+
 export const Dashboard: React.FC = () => {
   const [soundsMuted, setSoundsMuted] = useState(false);
   const [openLinks, setOpenLinks] = useState<Map<string, OpenLink>>(new Map());
+  const [openChannels, setOpenChannels] = useState<Map<string, OpenChannel>>(new Map());
   const [showStartMenu, setShowStartMenu] = useState(false);
   const [showBackupSetup, setShowBackupSetup] = useState(false);
   const [unbackedLinkIds, setUnbackedLinkIds] = useState<string[]>([]);
   const [time, setTime] = useState(new Date());
+  const [vaultState, setVaultState] = useState<'loading' | 'needs_setup' | 'needs_unlock' | 'unlocked'>('loading');
   const { setMuted, playBuddyOut, playYouvGotMail } = useAIMSounds();
   const { links, loading, newMessageLinkIds, acknowledgeLink, refreshLinks } = useMessagePolling();
   const prevNewIdsRef = useRef<Set<string>>(new Set());
@@ -108,6 +121,34 @@ export const Dashboard: React.FC = () => {
   React.useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Check vault state on mount
+  useEffect(() => {
+    const checkVault = async () => {
+      if (isVaultUnlocked()) {
+        setVaultState('unlocked');
+        return;
+      }
+      const configured = await isVaultConfigured();
+      if (configured) {
+        setVaultState('needs_unlock');
+        return;
+      }
+      // Vault not configured: check if there are cleartext keys to migrate
+      const dismissed = localStorage.getItem('bw:vault-dismissed-until');
+      if (dismissed && Date.now() < Number(dismissed)) {
+        setVaultState('unlocked'); // Skip for now
+        return;
+      }
+      const hasKeys = await hasCleartextKeys();
+      if (hasKeys) {
+        setVaultState('needs_setup');
+      } else {
+        setVaultState('unlocked'); // No keys yet, vault will be set up on first backup
+      }
+    };
+    checkVault();
   }, []);
 
   // Check if backup setup is needed (once after links load; re-run only when link set changes)
@@ -209,7 +250,24 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleOpenChannel = useCallback((channelId: string, channelName: string, readUrl: string, postToken?: string, encryptionKey?: string) => {
+    setOpenChannels((prev) => {
+      const next = new Map(prev);
+      next.set(channelId, { channelId, channelName, readUrl, postToken, encryptionKey });
+      return next;
+    });
+  }, []);
+
+  const handleCloseChannel = useCallback((channelId: string) => {
+    setOpenChannels((prev) => {
+      const next = new Map(prev);
+      next.delete(channelId);
+      return next;
+    });
+  }, []);
+
   const openLinksArray = Array.from(openLinks.values());
+  const openChannelsArray = Array.from(openChannels.values());
 
   return (
     <WindowManager>
@@ -220,9 +278,21 @@ export const Dashboard: React.FC = () => {
             loading={loading}
             newMessageLinkIds={newMessageLinkIds}
             onOpenThreads={handleOpenThreads}
+            onOpenChannel={handleOpenChannel}
             onLinksChanged={refreshLinks}
             zIndex={100}
           />
+
+          {(vaultState === 'needs_setup' || vaultState === 'needs_unlock') && (
+            <VaultUnlockDialog
+              mode={vaultState === 'needs_setup' ? 'setup' : 'unlock'}
+              onUnlocked={() => setVaultState('unlocked')}
+              onSkip={() => {
+                localStorage.setItem('bw:vault-dismissed-until', String(Date.now() + 24 * 60 * 60 * 1000));
+                setVaultState('unlocked');
+              }}
+            />
+          )}
 
           {showBackupSetup && (
             <BackupSetupDialog
@@ -247,6 +317,21 @@ export const Dashboard: React.FC = () => {
             />
           ))}
 
+          {openChannelsArray.map((oc, index) => (
+            <BroadcastChannelWindow
+              key={oc.channelId}
+              channelId={oc.channelId}
+              channelName={oc.channelName}
+              readUrl={oc.readUrl}
+              postToken={oc.postToken}
+              encryptionKey={oc.encryptionKey}
+              onClose={() => handleCloseChannel(oc.channelId)}
+              initialX={380 + index * 30}
+              initialY={80 + index * 30}
+              zIndex={200 + index}
+            />
+          ))}
+
           <Taskbar>
             <StartButton onClick={() => setShowStartMenu(!showStartMenu)}>
               <img src="/burnware-logo.png" alt="" style={{ width: 20, height: 20 }} />
@@ -254,6 +339,7 @@ export const Dashboard: React.FC = () => {
             </StartButton>
             <TaskbarSeparator />
             <TaskbarButton>My Anonymous Links</TaskbarButton>
+            <TaskbarButton>📡 Broadcast ({openChannelsArray.length})</TaskbarButton>
             <SoundManager muted={soundsMuted} onToggleMute={() => setSoundsMuted(!soundsMuted)} />
             <Clock>{time.toLocaleTimeString()}</Clock>
           </Taskbar>
