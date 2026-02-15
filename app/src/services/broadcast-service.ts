@@ -11,6 +11,7 @@ import { CryptoUtils } from '../utils/crypto-utils';
 import { ValidationError, NotFoundError } from '../utils/error-utils';
 import { logger } from '../config/logger';
 import { AppSyncPublisher } from './appsync-publisher';
+import { getDb } from '../config/database';
 
 const CHANNEL_ID_LENGTH = 12;
 const POST_TOKEN_BYTES = 32;
@@ -57,7 +58,23 @@ export class BroadcastService {
   private postModel = new BroadcastPostModel();
   private publisher = new AppSyncPublisher();
 
+  private async ensureUserExists(userId: string): Promise<void> {
+    const db = getDb();
+    await db.query(
+      `INSERT INTO users (user_id, email, created_at, updated_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         updated_at = CURRENT_TIMESTAMP,
+         last_login_at = CURRENT_TIMESTAMP`,
+      [userId, `${userId}@unknown.local`]
+    );
+  }
+
   async createChannel(input: CreateChannelInput): Promise<CreateChannelResult> {
+    if (input.owner_user_id) {
+      await this.ensureUserExists(input.owner_user_id);
+    }
+
     const channelId = generateChannelId();
     const postToken = generatePostToken();
     const postTokenHash = CryptoUtils.hash(postToken);

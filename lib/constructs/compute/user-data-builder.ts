@@ -28,6 +28,8 @@ export interface UserDataConfig {
   appSyncApiKey?: string;
   /** Lambda ARN for publishing AppSync Events from NAT-free VPC. */
   appSyncPublishFnArn?: string;
+  /** Base URL for broadcast channel read links (e.g. https://burnware.live). */
+  broadcastReadUrlBase?: string;
 }
 
 export class UserDataBuilder {
@@ -112,6 +114,7 @@ export class UserDataBuilder {
       ...(config.appSyncHttpDns ? [`APPSYNC_HTTP_DOMAIN=${config.appSyncHttpDns}`] : []),
       ...(config.appSyncApiKey ? [`APPSYNC_API_KEY=${config.appSyncApiKey}`] : []),
       ...(config.appSyncPublishFnArn ? [`APPSYNC_PUBLISH_FN_ARN=${config.appSyncPublishFnArn}`] : []),
+      ...(config.broadcastReadUrlBase ? [`BROADCAST_READ_URL_BASE=${config.broadcastReadUrlBase}`] : []),
       'ENVEOF',
       '',
     );

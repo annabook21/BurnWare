@@ -206,6 +206,7 @@ export class AppStack extends Stack {
             appSyncHttpDns,
             appSyncApiKey,
             appSyncPublishFnArn,
+            broadcastReadUrlBase: domainName ? `https://${domainName}` : undefined,
           }
         : undefined;
 

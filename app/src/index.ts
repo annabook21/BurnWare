@@ -4,13 +4,14 @@
  */
 
 import dotenv from 'dotenv';
+import path from 'path';
 import { databaseConfig } from './config/database';
 import { initializeTracing } from './config/tracing';
 import { startServer } from './server';
 import { logger } from './config/logger';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables (explicit path for PM2 cluster mode)
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 /**
  * Initialize application
