@@ -21,8 +21,8 @@ if [ ! -d "node_modules" ]; then
   exit 1
 fi
 
-# Verify PM2 is available in bundled modules
-if [ ! -x "node_modules/.bin/pm2" ]; then
+# Verify PM2 is available in bundled modules (use direct path, not .bin/ symlink)
+if [ ! -f "node_modules/pm2/bin/pm2" ]; then
   echo "ERROR: PM2 not found in bundled node_modules."
   exit 1
 fi
