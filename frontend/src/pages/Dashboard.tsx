@@ -19,7 +19,7 @@ import { signOut, getAccessToken } from '../config/cognito-config';
 import apiClient from '../utils/api-client';
 import { endpoints } from '../config/api-endpoints';
 import { getAllLinkKeys, hasCleartextKeys } from '../utils/key-store';
-import { isVaultConfigured, isVaultUnlocked } from '../utils/key-vault';
+import { isVaultConfigured, isVaultUnlocked, tryRestoreVaultFromSession } from '../utils/key-vault';
 
 const Desktop = styled.div`
   width: 100vw;
@@ -123,9 +123,10 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Check vault state on mount
+  // Check vault state on mount (restore from session first so refresh doesn't re-prompt)
   useEffect(() => {
     const checkVault = async () => {
+      await tryRestoreVaultFromSession();
       if (isVaultUnlocked()) {
         setVaultState('unlocked');
         return;

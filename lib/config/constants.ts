@@ -37,10 +37,11 @@ export const WAF_CONFIG = {
 } as const;
 
 // CloudFront Configuration
+// See: https://aws.amazon.com/blogs/networking-and-content-delivery/host-single-page-applications-spa-with-tiered-ttls-on-cloudfront-and-s3/
 export const CLOUDFRONT_CONFIG = {
   priceClass: 'PriceClass_100', // Use only North America and Europe
-  indexCacheTtl: 300, // 5 minutes
-  assetCacheTtl: 31536000, // 1 year
+  indexCacheTtl: 60, // 1 min – revalidate often so deploys visible without invalidation
+  assetCacheTtl: 31536000, // 1 year for hashed /assets/* (immutable)
 } as const;
 
 // Application Configuration

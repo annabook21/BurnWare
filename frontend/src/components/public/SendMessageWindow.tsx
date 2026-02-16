@@ -478,6 +478,7 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             onKeyDown={handleKeyDown}
             placeholder="Type your anonymous message here..."
             maxLength={MAX_LENGTH}
+            autoFocus
           />
           <div style={{ fontSize: aimTheme.fonts.size.tiny, color: aimTheme.colors.darkGray, marginTop: 2 }}>
             {message.length > 0 && (

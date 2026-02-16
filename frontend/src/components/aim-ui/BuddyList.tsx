@@ -16,6 +16,7 @@ interface BuddyListProps {
   channels?: BroadcastChannelType[];
   newMessageLinkIds?: Set<string>;
   onLinkClick: (linkId: string) => void;
+  onLinkDoubleClick?: (linkId: string) => void;
   onLinkContextMenu?: (linkId: string, e: React.MouseEvent) => void;
   onChannelClick?: (channelId: string) => void;
   onChannelContextMenu?: (channelId: string, e: React.MouseEvent) => void;
@@ -151,6 +152,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
   channels = [],
   newMessageLinkIds,
   onLinkClick,
+  onLinkDoubleClick,
   onLinkContextMenu,
   onChannelClick,
   onChannelContextMenu,
@@ -226,6 +228,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 messageCount={link.message_count}
                 hasNewMessages={newMessageLinkIds?.has(link.link_id)}
                 onClick={() => handleLinkClick(link.link_id)}
+                onDoubleClick={onLinkDoubleClick ? () => onLinkDoubleClick(link.link_id) : undefined}
                 onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
               />
             ))}
@@ -249,6 +252,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                     messageCount={link.message_count}
                     hasNewMessages={newMessageLinkIds?.has(link.link_id)}
                     onClick={() => handleLinkClick(link.link_id)}
+                    onDoubleClick={onLinkDoubleClick ? () => onLinkDoubleClick(link.link_id) : undefined}
                     onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
                   />
                 ))}
@@ -271,6 +275,7 @@ export const BuddyList: React.FC<BuddyListProps> = ({
                 status="expired"
                 messageCount={0}
                 onClick={() => handleLinkClick(link.link_id)}
+                onDoubleClick={onLinkDoubleClick ? () => onLinkDoubleClick(link.link_id) : undefined}
                 onContextMenu={onLinkContextMenu ? (e) => onLinkContextMenu(link.link_id, e) : undefined}
               />
             ))}

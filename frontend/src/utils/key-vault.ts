@@ -2,7 +2,11 @@
  * Key Vault
  * Encrypts private keys at rest in IndexedDB using a PBKDF2-derived vault key.
  * The vault passphrase is the same as the backup recovery passphrase.
- * The cleartext vault key only exists in memory during an active session.
+ *
+ * Session persistence: After unlock, the vault key is split (XOR) and stored
+ * in sessionStorage + window.name so it survives page refresh but not tab close.
+ * Pattern follows ProtonMail-style key splitting (see e.g. francoisbest.com/posts/2019
+ * how-to-store-e2ee-keys-in-the-browser). No re-prompt on refresh.
  */
 
 const AES_ALGO: AesKeyGenParams = { name: 'AES-GCM', length: 256 };
@@ -15,7 +19,10 @@ const VAULT_META_STORE = 'vaultMeta';
 const VAULT_SALT_KEY = 'salt';
 const VAULT_VERIFY_KEY = 'verifyToken';
 
-/** In-memory vault key — never persisted. */
+const SESSION_PART_A_KEY = 'bw:vault-session-a';
+const WINDOW_NAME_PREFIX = 'bw_vault|';
+
+/** In-memory vault key. Restored from session split on load when possible. */
 let vaultKey: CryptoKey | null = null;
 
 // ── IndexedDB helpers (minimal, vault-specific) ──
@@ -78,6 +85,7 @@ function hexToBuffer(hex: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+/** Extractable so we can export for session split (survive refresh). */
 async function deriveVaultKey(passphrase: string, salt: Uint8Array, usages: KeyUsage[]): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey'],
@@ -86,7 +94,7 @@ async function deriveVaultKey(passphrase: string, salt: Uint8Array, usages: KeyU
     { name: 'PBKDF2', salt: salt as BufferSource, iterations: VAULT_ITERATIONS, hash: 'SHA-256' },
     keyMaterial,
     AES_ALGO,
-    false,
+    true,
     usages,
   );
 }
@@ -104,9 +112,67 @@ export function isVaultUnlocked(): boolean {
   return vaultKey !== null;
 }
 
-/** Clear the in-memory vault key. */
+/** Clear the in-memory vault key and session persistence. */
 export function lockVault(): void {
   vaultKey = null;
+  try {
+    sessionStorage.removeItem(SESSION_PART_A_KEY);
+    if (typeof window !== 'undefined' && window.name.startsWith(WINDOW_NAME_PREFIX)) {
+      window.name = '';
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Restore vault key from session split (sessionStorage + window.name). Survives refresh, not tab close. */
+export async function tryRestoreVaultFromSession(): Promise<boolean> {
+  if (vaultKey !== null) return true;
+  try {
+    const partAEnc = sessionStorage.getItem(SESSION_PART_A_KEY);
+    const wn = typeof window !== 'undefined' ? window.name : '';
+    if (!partAEnc || !wn.startsWith(WINDOW_NAME_PREFIX)) return false;
+    const partBEnc = wn.slice(WINDOW_NAME_PREFIX.length);
+    const partA = base64ToBytes(partAEnc);
+    const partB = base64ToBytes(partBEnc);
+    if (partA.length !== 32 || partB.length !== 32) return false;
+    const keyBytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) keyBytes[i] = partA[i]! ^ partB[i]!;
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyBytes.buffer,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    );
+    vaultKey = key;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+async function persistSessionSplit(key: CryptoKey): Promise<void> {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  const keyBytes = new Uint8Array(raw);
+  const partA = crypto.getRandomValues(new Uint8Array(32));
+  const partB = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) partB[i] = keyBytes[i]! ^ partA[i]!;
+  sessionStorage.setItem(SESSION_PART_A_KEY, bytesToBase64(partA));
+  if (typeof window !== 'undefined') {
+    window.name = WINDOW_NAME_PREFIX + bytesToBase64(partB);
+  }
 }
 
 /**
@@ -129,6 +195,7 @@ export async function setupVault(passphrase: string): Promise<void> {
   });
 
   vaultKey = key;
+  await persistSessionSplit(key);
 }
 
 /**
@@ -157,6 +224,7 @@ export async function initializeVault(passphrase: string): Promise<void> {
   }
 
   vaultKey = key;
+  await persistSessionSplit(key);
 }
 
 /** Encrypt a string with the vault key. Throws if vault is locked. */

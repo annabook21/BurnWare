@@ -73,6 +73,10 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
   const [channelContextMenu, setChannelContextMenu] = useState<{ channelId: string; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
+  // AIM-style: double-click opens message window; single-click delayed so double-click can cancel it
+  const pendingClickRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SINGLE_CLICK_DELAY_MS = 250;
+
   const fetchChannels = useCallback(async () => {
     try {
       const token = await getAccessToken();
@@ -96,17 +100,38 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
 
   const getContextLink = () => links.find((l) => l.link_id === contextMenu?.linkId) || null;
 
-  const handleLinkClick = (linkId: string) => {
+  const doSingleClick = useCallback((linkId: string) => {
     const link = links.find((l) => l.link_id === linkId);
     if (!link) return;
-
     if (link.message_count > 0) {
       onOpenThreads(linkId, link.display_name);
     } else {
       setSelectedLink(link);
       setShowQRDialog(true);
     }
-  };
+  }, [links, onOpenThreads]);
+
+  const handleLinkClick = useCallback((linkId: string) => {
+    if (pendingClickRef.current) clearTimeout(pendingClickRef.current);
+    pendingClickRef.current = setTimeout(() => {
+      pendingClickRef.current = null;
+      doSingleClick(linkId);
+    }, SINGLE_CLICK_DELAY_MS);
+  }, [doSingleClick]);
+
+  const handleLinkDoubleClick = useCallback((linkId: string) => {
+    if (pendingClickRef.current) {
+      clearTimeout(pendingClickRef.current);
+      pendingClickRef.current = null;
+    }
+    const link = links.find((l) => l.link_id === linkId);
+    if (!link) return;
+    if (link.message_count > 0) {
+      onOpenThreads(linkId, link.display_name);
+    } else {
+      window.open(`${window.location.origin}/l/${linkId}`, '_blank', 'noopener,noreferrer');
+    }
+  }, [links, onOpenThreads]);
 
   const handleCreateLink = () => {
     setShowCreateDialog(true);
@@ -287,6 +312,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
           links={[]}
           channels={[]}
           onLinkClick={() => {}}
+          onLinkDoubleClick={() => {}}
           onCreateLink={() => {}}
           onCreateChannel={() => {}}
           zIndex={zIndex}
@@ -303,6 +329,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
         channels={channels}
         newMessageLinkIds={newMessageLinkIds}
         onLinkClick={handleLinkClick}
+        onLinkDoubleClick={handleLinkDoubleClick}
         onLinkContextMenu={handleContextMenu}
         onChannelClick={handleChannelClick}
         onChannelContextMenu={handleChannelContextMenu}
@@ -369,6 +396,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
             y={contextMenu.y}
             hasMessages={ctxLink.message_count > 0}
             onOpenThreads={() => onOpenThreads(ctxLink.link_id, ctxLink.display_name)}
+            onOpenSendPage={() => window.open(`${window.location.origin}/l/${ctxLink.link_id}`, '_blank', 'noopener,noreferrer')}
             onGetBuddyInfo={() => {
               setSelectedLink(ctxLink);
               setShowQRDialog(true);

@@ -180,8 +180,8 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
   return (
     <WindowFrame
       title="✨ Create New Link"
-      width={420}
-      height={opsecMode ? 560 : 480}
+      width={440}
+      height={520}
       initialX={150}
       initialY={100}
       zIndex={1001}

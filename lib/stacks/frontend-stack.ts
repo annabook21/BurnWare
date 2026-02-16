@@ -8,6 +8,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { Stack, StackProps, CfnOutput, RemovalPolicy, Duration } from 'aws-cdk-lib';
+import { AssetHashType } from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
@@ -90,10 +91,10 @@ export class FrontendStack extends Stack {
     // https://aws.amazon.com/blogs/networking-and-content-delivery/host-single-page-applications-spa-with-tiered-ttls-on-cloudfront-and-s3/
     const indexCachePolicy = new cloudfront.CachePolicy(this, 'IndexCachePolicy', {
       cachePolicyName: NamingUtils.getResourceName('index-cache', environment),
-      comment: 'Short TTL for index.html',
+      comment: 'Short TTL for index.html; origin Cache-Control preferred',
       defaultTtl: Duration.seconds(CLOUDFRONT_CONFIG.indexCacheTtl),
       minTtl: Duration.seconds(0),
-      maxTtl: Duration.seconds(600),
+      maxTtl: Duration.days(30), // allow origin stale-while-revalidate
       headerBehavior: cloudfront.CacheHeaderBehavior.none(),
       queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
       cookieBehavior: cloudfront.CacheCookieBehavior.none(),
@@ -162,7 +163,8 @@ export class FrontendStack extends Stack {
         }],
       },
       additionalBehaviors: {
-        '/static/*': {
+        // Vite emits hashed JS/CSS under /assets/; long TTL for immutable assets
+        '/assets/*': {
           origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
@@ -220,26 +222,49 @@ export class FrontendStack extends Stack {
       },
     });
 
+    // Set Cache-Control on objects so CloudFront/browsers revalidate without invalidation.
+    // Single deployment applies same header to all files; /assets/* still gets long TTL via behavior.
+    // For full tiered TTLs (1y immutable on JS/CSS), use two BucketDeployments from pre-built dist
+    // with exclude so index.html gets short TTL and assets get long TTL (see AWS blog above).
+    const deployCacheControl = [
+      s3deploy.CacheControl.setPublic(),
+      s3deploy.CacheControl.maxAge(Duration.seconds(CLOUDFRONT_CONFIG.indexCacheTtl)),
+      s3deploy.CacheControl.staleWhileRevalidate(Duration.days(30)),
+    ];
+
     new s3deploy.BucketDeployment(this, 'FrontendDeploy', {
       sources: [
         s3deploy.Source.asset(frontendPath, {
+          // Hash the bundling output so deployment always updates when built files change
+          assetHashType: AssetHashType.OUTPUT,
           bundling: {
             image: DockerImage.fromRegistry('node:20-alpine'),
             command: [
               'sh',
               '-c',
-              '(test -f package-lock.json && npm ci || npm install) && npm run build && cp -r dist/* /asset-output/',
+              [
+                'rm -rf dist node_modules/.vite',
+                '(test -f package-lock.json && npm ci || npm install)',
+                'npm run build',
+                'cp -r dist/* /asset-output/',
+                'echo "build $(node -e \\"console.log(new Date().toISOString())\\")" > /asset-output/build-id.txt',
+              ].join(' && '),
             ],
             user: 'root',
             local: {
               tryBundle(outputDir: string): boolean {
                 try {
+                  const distDir = path.join(frontendPath, 'dist');
+                  const viteCache = path.join(frontendPath, 'node_modules', '.vite');
+                  if (fs.existsSync(distDir)) execSync(`rm -rf "${distDir}"`, { stdio: 'inherit' });
+                  if (fs.existsSync(viteCache)) execSync(`rm -rf "${viteCache}"`, { stdio: 'inherit' });
                   const hasLock = fs.existsSync(path.join(frontendPath, 'package-lock.json'));
                   execSync(hasLock ? 'npm ci' : 'npm install', { cwd: frontendPath, stdio: 'inherit' });
                   execSync('npm run build', { cwd: frontendPath, stdio: 'inherit' });
-                  const distPath = path.join(frontendPath, 'dist');
-                  if (fs.existsSync(distPath)) {
-                    execSync(`cp -r "${distPath}"/* "${outputDir}/"`, { stdio: 'inherit' });
+                  if (fs.existsSync(distDir)) {
+                    execSync(`cp -r "${distDir}"/* "${outputDir}/"`, { stdio: 'inherit' });
+                    const buildId = `build ${new Date().toISOString()}`;
+                    fs.writeFileSync(path.join(outputDir, 'build-id.txt'), buildId, 'utf8');
                     return true;
                   }
                 } catch {
@@ -256,6 +281,7 @@ export class FrontendStack extends Stack {
       distribution: this.distribution,
       distributionPaths: ['/*'],
       prune: true,
+      cacheControl: deployCacheControl,
     });
 
     // Apply tags
@@ -287,7 +313,7 @@ export class FrontendStack extends Stack {
     });
 
     new CfnOutput(this, 'CachingStrategy', {
-      value: 'index.html: 5min TTL, static assets: 1 year TTL',
+      value: 'Origin Cache-Control: 60s + stale-while-revalidate; /assets/*: 1y TTL',
       description: 'Caching Strategy',
     });
   }

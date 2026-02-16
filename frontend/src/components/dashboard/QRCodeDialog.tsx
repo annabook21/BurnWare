@@ -4,7 +4,7 @@
  * File size: ~140 lines
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -102,9 +102,21 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
     awsConfig.api.baseUrl.replace('/api', '') || window.location.origin;
   const fullUrl = displayUrl ?? `${baseUrl}/l/${linkId}`;
 
+  // Auto-copy on open so owner can paste and share in one less click
+  useEffect(() => {
+    if (fullUrl) {
+      navigator.clipboard.writeText(fullUrl).catch(() => {});
+      toast.success('Link copied to clipboard');
+    }
+  }, [fullUrl]);
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullUrl);
     toast.success('Link copied to clipboard!');
+  };
+
+  const handleOpenSendPage = () => {
+    window.open(fullUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleDownloadQR = () => {
@@ -145,7 +157,7 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
         <LinkInfo>
           <LinkName>🔥 {linkName}</LinkName>
           <div style={{ fontSize: aimTheme.fonts.size.small, color: aimTheme.colors.darkGray, marginBottom: aimTheme.spacing.sm }}>
-            Share this link so others can send you messages.
+            Share this link so others can send you messages. Double-click any link in the list to open the send page.
           </div>
           <LinkUrl>{fullUrl}</LinkUrl>
         </LinkInfo>
@@ -155,6 +167,7 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
         </QRContainer>
 
         <ButtonBar>
+          <Button onClick={handleOpenSendPage}>✉️ Open send page</Button>
           <Button onClick={handleCopyLink}>📋 Copy Link</Button>
           <Button onClick={handleDownloadQR}>💾 Download QR</Button>
           {onDelete && !confirmingDelete && (

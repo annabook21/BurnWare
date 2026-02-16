@@ -151,8 +151,8 @@ export const VaultUnlockDialog: React.FC<VaultUnlockDialogProps> = ({
 
   const title = mode === 'setup' ? 'Secure Your Keys' : 'Unlock Vault';
   const description = mode === 'setup'
-    ? 'Set a passphrase to encrypt your private keys on this device. This is the same passphrase used for key backup recovery.'
-    : 'Enter your recovery passphrase to unlock your encryption keys for this session.';
+    ? 'Set a passphrase to encrypt your private keys on this device. This is the same passphrase used for key backup recovery. You’ll only be asked again when you open the app in a new tab.'
+    : 'Enter your recovery passphrase to unlock your encryption keys. You won’t be asked again on refresh until you close this tab.';
 
   return (
     <WindowFrame

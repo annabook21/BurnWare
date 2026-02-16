@@ -17,6 +17,16 @@ cdk deploy --all --context environment=dev   # Deploy all stacks
 cdk deploy BurnWare-App-dev --context environment=dev  # Deploy single stack
 ```
 
+**Deploy frontend (UI) to dev:** UI changes only reach dev when the **Frontend** stack is deployed. The stack builds the frontend asset and runs BucketDeployment; if you ran `cdk deploy --all` but the Frontend stack wasn’t updated (e.g. no infra diff), or you only deployed another stack, the new frontend build is not live. Always deploy the Frontend stack for UI changes:
+```bash
+cdk deploy BurnWare-Frontend-dev --context environment=dev --require-approval never
+```
+Then invalidate CloudFront so the new bundle is served immediately (otherwise revalidation may take up to ~60s). Use the distribution ID from the deploy output or:
+```bash
+aws cloudfront create-invalidation --distribution-id $(aws cloudformation describe-stacks --stack-name BurnWare-Frontend-dev --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text --region us-east-1) --paths "/*"
+```
+(Frontend stack is in us-east-1 for CloudFront.)
+
 ### Backend API (app/)
 ```bash
 cd app

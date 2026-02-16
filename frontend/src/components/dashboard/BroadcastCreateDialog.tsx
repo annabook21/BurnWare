@@ -119,6 +119,10 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
         read_url: `${data.read_url}#${encryptionKey}`,
       };
       setResult(resultWithKey);
+      // Auto-copy read link so owner can share in one less click
+      const readUrlWithKey = `${data.read_url}#${encryptionKey}`;
+      navigator.clipboard.writeText(readUrlWithKey).catch(() => {});
+      toast.success('Read link copied to clipboard — share it so people can view the feed');
     } catch (error) {
       console.error('Failed to create broadcast channel:', error);
       const isApiUnreachable =

@@ -18,6 +18,7 @@ interface BuddyListItemProps {
   hasNewMessages?: boolean;
   isRoom?: boolean;
   onClick: () => void;
+  onDoubleClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }
 
@@ -83,12 +84,13 @@ export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
   hasNewMessages = false,
   isRoom = false,
   onClick,
+  onDoubleClick,
   onContextMenu,
 }) => {
   return (
     <>
       <style>{pulseKeyframes}</style>
-      <ItemContainer status={status} onClick={onClick} onContextMenu={onContextMenu}>
+      <ItemContainer status={status} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
         <ItemLeft>
           {isRoom ? (
             <RoomIcon $expired={status === 'expired'}>🔒</RoomIcon>

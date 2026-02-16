@@ -44,7 +44,8 @@ const WindowContainer = styled.div<{ $w: number; $h: number; $z: number }>`
 
 const WindowContent = styled.div`
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 `;

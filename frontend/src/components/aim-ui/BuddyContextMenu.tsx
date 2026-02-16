@@ -12,6 +12,7 @@ interface ContextMenuProps {
   y: number;
   hasMessages: boolean;
   onOpenThreads: () => void;
+  onOpenSendPage?: () => void;
   onGetBuddyInfo: () => void;
   onEditDescription: () => void;
   onDelete: () => void;
@@ -69,6 +70,7 @@ export const BuddyContextMenu: React.FC<ContextMenuProps> = ({
   y,
   hasMessages,
   onOpenThreads,
+  onOpenSendPage,
   onGetBuddyInfo,
   onEditDescription,
   onDelete,
@@ -91,8 +93,13 @@ export const BuddyContextMenu: React.FC<ContextMenuProps> = ({
           onClick={() => { onOpenThreads(); onClose(); }}
           style={!hasMessages ? { color: aimTheme.colors.darkGray } : undefined}
         >
-          Send an Instant Message
+          {hasMessages ? 'View messages' : 'Send an Instant Message'}
         </MenuItem>
+        {onOpenSendPage && (
+          <MenuItem onClick={() => { onOpenSendPage(); onClose(); }}>
+            Open send page
+          </MenuItem>
+        )}
         <MenuItem onClick={() => { onGetBuddyInfo(); onClose(); }}>
           Get Buddy Info
         </MenuItem>
