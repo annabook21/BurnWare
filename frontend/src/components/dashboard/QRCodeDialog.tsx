@@ -144,6 +144,9 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
       <DialogContainer>
         <LinkInfo>
           <LinkName>🔥 {linkName}</LinkName>
+          <div style={{ fontSize: aimTheme.fonts.size.small, color: aimTheme.colors.darkGray, marginBottom: aimTheme.spacing.sm }}>
+            Share this link so others can send you messages.
+          </div>
           <LinkUrl>{fullUrl}</LinkUrl>
         </LinkInfo>
 

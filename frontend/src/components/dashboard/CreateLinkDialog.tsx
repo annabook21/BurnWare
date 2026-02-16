@@ -22,10 +22,13 @@ interface CreateLinkDialogProps {
   onClose: () => void;
 }
 
+/** Scrollable body so Expires In + OPSEC + buttons aren't clipped. WindowFrame's content area uses overflow:hidden so without this the bottom of the form was cut off. min-height:0 lets the flex child shrink and show a scrollbar. */
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -178,7 +181,7 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
     <WindowFrame
       title="✨ Create New Link"
       width={420}
-      height={opsecMode ? 540 : 400}
+      height={opsecMode ? 560 : 480}
       initialX={150}
       initialY={100}
       zIndex={1001}
@@ -195,6 +198,9 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
             maxLength={100}
             autoFocus
           />
+          <div style={{ fontSize: aimTheme.fonts.size.tiny, color: aimTheme.colors.darkGray, marginTop: 2 }}>
+            Senders will see this when they open the link.
+          </div>
         </Field>
 
         <Field>

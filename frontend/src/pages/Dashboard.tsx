@@ -177,7 +177,9 @@ export const Dashboard: React.FC = () => {
         );
         const needsBackup: string[] = [];
         toCheck.forEach((link, i) => {
-          if (results[i].status === 'rejected') needsBackup.push(link.link_id);
+          const r = results[i];
+          if (r.status === 'rejected') needsBackup.push(link.link_id);
+          else if (r.status === 'fulfilled' && r.value?.data?.data == null) needsBackup.push(link.link_id);
         });
         if (needsBackup.length > 0) {
           setUnbackedLinkIds(needsBackup);

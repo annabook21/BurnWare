@@ -168,6 +168,7 @@ const BookmarkBar = styled.div`
 `;
 
 const MAX_LENGTH = 5000;
+const CHAR_COUNT_WARN = 4500;
 const WINDOW_WIDTH = 520;
 const WINDOW_HEIGHT = 480;
 const POLL_INTERVAL_MS = 30000; // Fallback only; AppSync Events provides instant updates
@@ -411,6 +412,11 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
               placeholder="Type a follow-up message..."
               maxLength={MAX_LENGTH}
             />
+            {message.length > 0 && (
+              <div style={{ fontSize: aimTheme.fonts.size.tiny, color: aimTheme.colors.darkGray, paddingLeft: aimTheme.spacing.sm }}>
+                {message.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()}
+              </div>
+            )}
             <ButtonBar>
               <AIMButton onClick={handleFollowUp} disabled={!message.trim() || sending}>
                 {sending ? 'Sending...' : 'Send'}
@@ -426,6 +432,26 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
           {opsecInfo?.access_mode !== 'single_use' && (
             <BookmarkBar>
               Bookmark to return later: <a href={threadUrl} target="_blank" rel="noopener noreferrer">{threadUrl}</a>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(threadUrl);
+                  toast.success('Thread link copied');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: aimTheme.colors.blue,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Copy link
+              </button>
             </BookmarkBar>
           )}
         </Container>
@@ -453,6 +479,13 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             placeholder="Type your anonymous message here..."
             maxLength={MAX_LENGTH}
           />
+          <div style={{ fontSize: aimTheme.fonts.size.tiny, color: aimTheme.colors.darkGray, marginTop: 2 }}>
+            {message.length > 0 && (
+              <span style={message.length >= CHAR_COUNT_WARN ? { color: aimTheme.colors.fireRed } : undefined}>
+                {message.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()} characters
+              </span>
+            )}
+          </div>
           <PrivacyNote>
             {linkInfo?.public_key
               ? 'End-to-end encrypted. The server never sees your message — only the recipient can decrypt it.'
@@ -460,12 +493,12 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
           </PrivacyNote>
           {linkInfo?.opsec?.passphrase_required && (
             <div style={{ marginTop: aimTheme.spacing.sm }}>
-              <Label>Passphrase Required:</Label>
+              <Label>Passphrase (from link owner):</Label>
               <input
                 type="password"
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
-                placeholder="Enter link passphrase"
+                placeholder="Enter the passphrase the link owner gave you"
                 style={{
                   width: '100%',
                   border: aimTheme.borders.inset,

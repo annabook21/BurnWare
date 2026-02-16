@@ -112,7 +112,14 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
     setShowCreateDialog(true);
   };
 
-  const handleLinkCreated = async (data: { display_name: string; description?: string }) => {
+  const handleLinkCreated = async (data: {
+    display_name: string;
+    description?: string;
+    expires_in_days?: number;
+    opsec_mode?: boolean;
+    opsec_access?: 'device_bound' | 'single_use';
+    opsec_passphrase?: string;
+  }) => {
     try {
       const { publicKeyBase64, privateKeyJwk } = await generateKeyPair();
 

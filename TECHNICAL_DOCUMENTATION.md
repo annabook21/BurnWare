@@ -652,7 +652,7 @@ Express 5 application running on Node.js 20 under PM2 cluster mode.
 | `PATCH` | `/api/v1/dashboard/links/:link_id` | Update link | `{ display_name?, description?, expires_in_days? }` | `{ link }` |
 | `DELETE` | `/api/v1/dashboard/links/:link_id` | Delete link | — | 204 |
 | `PUT` | `/api/v1/dashboard/links/:link_id/key-backup` | Store encrypted key | `{ wrapped_key, salt, iv }` | 200 |
-| `GET` | `/api/v1/dashboard/links/:link_id/key-backup` | Get encrypted key | — | `{ wrapped_key, salt, iv }` or 404 |
+| `GET` | `/api/v1/dashboard/links/:link_id/key-backup` | Get encrypted key | — | 200 `{ data: { wrapped_key, salt, iv } }` or 200 `{ data: null }` when no backup |
 | `GET` | `/api/v1/dashboard/links/:link_id/threads` | List threads | Query: `page`, `limit` | `{ data: threads[], pagination }` |
 | `GET` | `/api/v1/dashboard/threads/:thread_id` | Thread + messages | Query: `page`, `limit` | `{ thread, messages[], pagination }` |
 | `POST` | `/api/v1/dashboard/threads/:thread_id/reply` | Owner reply | `{ ciphertext? \| message? }` | `{ message }` |

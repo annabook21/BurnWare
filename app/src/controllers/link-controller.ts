@@ -173,11 +173,7 @@ export const getKeyBackup = asyncHandler(
 
     const backup = await linkService.getKeyBackup(link_id, userId);
 
-    if (!backup) {
-      res.status(404).json({ error: { code: 'NO_BACKUP', message: 'No key backup found' } });
-      return;
-    }
-
-    ResponseUtils.success(res, backup);
+    // 200 with null when no backup (avoids 404 in network tab; frontend treats null as "no backup")
+    ResponseUtils.success(res, backup ?? null);
   }
 );

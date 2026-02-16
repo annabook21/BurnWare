@@ -3,7 +3,7 @@
  * Read URL, QR, add post form, link to public feed
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
@@ -112,8 +112,31 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
   const [postToken, setPostToken] = useState(initialPostToken ?? '');
   const [content, setContent] = useState('');
   const [posting, setPosting] = useState(false);
-  const [recoveredKey, setRecoveredKey] = useState('');
+  const [recoveredKey, setRecoveredKey] = useState(() => {
+    if (initialEncryptionKey) return '';
+    try {
+      const stored = JSON.parse(localStorage.getItem('bw:bc:encKeys') || '{}');
+      return stored[channelId] || '';
+    } catch { return ''; }
+  });
   const encryptionKey = initialEncryptionKey || recoveredKey || undefined;
+
+  // Recover key when we have it: from readUrl fragment, or from localStorage (e.g. parent state was stale)
+  useEffect(() => {
+    if (initialEncryptionKey || recoveredKey) return;
+    const hashIdx = readUrl.indexOf('#');
+    if (hashIdx >= 0) {
+      const key = readUrl.slice(hashIdx + 1).trim();
+      if (key) {
+        setRecoveredKey(key);
+        try {
+          const stored = JSON.parse(localStorage.getItem('bw:bc:encKeys') || '{}');
+          stored[channelId] = key;
+          localStorage.setItem('bw:bc:encKeys', JSON.stringify(stored));
+        } catch { /* ignore */ }
+      }
+    }
+  }, [readUrl, channelId, initialEncryptionKey, recoveredKey]);
 
   const handleRecoverKey = (urlOrKey: string) => {
     const trimmed = urlOrKey.trim();
@@ -212,11 +235,11 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
           {!encryptionKey && (
             <div style={{ marginBottom: '8px' }}>
               <div style={{ color: '#c00', fontSize: aimTheme.fonts.size.small, marginBottom: '4px' }}>
-                Encryption key not available. Paste your read URL to recover it:
+                Encryption key not available. To add posts you need the full read link that includes the key (the part after #). If you saved that link when you created the channel, paste it below:
               </div>
               <Input
                 type="text"
-                placeholder="Paste read URL (https://...#key) or key"
+                placeholder="Paste full read URL (https://...#key) or the key"
                 onBlur={(e) => handleRecoverKey(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleRecoverKey((e.target as HTMLInputElement).value); }}
               />
