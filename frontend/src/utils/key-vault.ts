@@ -14,8 +14,8 @@ const VAULT_ITERATIONS = 600_000;
 const IV_LENGTH = 12;
 const VERIFICATION_PLAINTEXT = 'burnware-vault-ok';
 
-const DB_NAME = 'burnware-keys';
-const VAULT_META_STORE = 'vaultMeta';
+import { idbGet, idbPut, VAULT_META_STORE } from './key-store-db';
+
 const VAULT_SALT_KEY = 'salt';
 const VAULT_VERIFY_KEY = 'verifyToken';
 
@@ -25,41 +25,14 @@ const WINDOW_NAME_PREFIX = 'bw_vault|';
 /** In-memory vault key. Restored from session split on load when possible. */
 let vaultKey: CryptoKey | null = null;
 
-// ── IndexedDB helpers (minimal, vault-specific) ──
-
-function openVaultDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 4);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains('linkKeys')) db.createObjectStore('linkKeys');
-      if (!db.objectStoreNames.contains('replyCache')) db.createObjectStore('replyCache');
-      if (!db.objectStoreNames.contains('roomKeys')) db.createObjectStore('roomKeys');
-      if (!db.objectStoreNames.contains(VAULT_META_STORE)) db.createObjectStore(VAULT_META_STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
+// ── IndexedDB helpers (vault-specific wrappers) ──
 
 async function vaultMetaGet<T>(key: string): Promise<T | undefined> {
-  const db = await openVaultDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(VAULT_META_STORE, 'readonly');
-    const req = tx.objectStore(VAULT_META_STORE).get(key);
-    req.onsuccess = () => resolve(req.result as T | undefined);
-    req.onerror = () => reject(req.error);
-  });
+  return idbGet<T>(VAULT_META_STORE, key);
 }
 
 async function vaultMetaPut(key: string, value: unknown): Promise<void> {
-  const db = await openVaultDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(VAULT_META_STORE, 'readwrite');
-    tx.objectStore(VAULT_META_STORE).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  return idbPut(VAULT_META_STORE, key, value);
 }
 
 // ── Key derivation ──

@@ -10,63 +10,11 @@
  */
 
 import { isVaultUnlocked, encryptForVault, decryptFromVault } from './key-vault';
-
-const DB_NAME = 'burnware-keys';
-const DB_VERSION = 4; // Bumped to add roomKeys and vaultMeta stores
-const LINK_KEYS_STORE = 'linkKeys';
-const REPLY_CACHE_STORE = 'replyCache';
-const ROOM_KEYS_STORE = 'roomKeys';
-const VAULT_META_STORE = 'vaultMeta';
-
-interface VaultWrappedEntry {
-  _vault: true;
-  ct: string;
-  iv: string;
-}
-
-function isVaultWrapped(val: unknown): val is VaultWrappedEntry {
-  return typeof val === 'object' && val !== null && '_vault' in val
-    && (val as VaultWrappedEntry)._vault === true;
-}
-
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(LINK_KEYS_STORE)) db.createObjectStore(LINK_KEYS_STORE);
-      if (!db.objectStoreNames.contains(REPLY_CACHE_STORE)) db.createObjectStore(REPLY_CACHE_STORE);
-      if (!db.objectStoreNames.contains(ROOM_KEYS_STORE)) db.createObjectStore(ROOM_KEYS_STORE);
-      if (!db.objectStoreNames.contains(VAULT_META_STORE)) db.createObjectStore(VAULT_META_STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbGet<T>(store: string, key: string): Promise<T | undefined> {
-  return openDb().then(
-    (db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(store, 'readonly');
-        const req = tx.objectStore(store).get(key);
-        req.onsuccess = () => resolve(req.result as T | undefined);
-        req.onerror = () => reject(req.error);
-      }),
-  );
-}
-
-function idbPut(store: string, key: string, value: unknown): Promise<void> {
-  return openDb().then(
-    (db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(store, 'readwrite', { durability: 'strict' });
-        tx.objectStore(store).put(value, key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      }),
-  );
-}
+import {
+  LINK_KEYS_STORE, REPLY_CACHE_STORE, ROOM_KEYS_STORE, BROADCAST_KEYS_STORE,
+  openDb, idbGet, idbPut,
+  isVaultWrapped, type VaultWrappedEntry,
+} from './key-store-db';
 
 // ── Link private keys (IndexedDB, persistent, vault-encrypted when available) ──
 
@@ -337,6 +285,31 @@ export async function migrateKeysToVault(): Promise<number> {
     }
   }
 
+  // Migrate broadcast keys
+  const bcKeys = await new Promise<Array<[string, unknown]>>((resolve, reject) => {
+    const tx = db.transaction(BROADCAST_KEYS_STORE, 'readonly');
+    const entries: Array<[string, unknown]> = [];
+    const req = tx.objectStore(BROADCAST_KEYS_STORE).openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        entries.push([cursor.key as string, cursor.value]);
+        cursor.continue();
+      } else {
+        resolve(entries);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+
+  for (const [key, val] of bcKeys) {
+    if (!isVaultWrapped(val)) {
+      const { ct, iv } = await encryptForVault(JSON.stringify(val));
+      await idbPut(BROADCAST_KEYS_STORE, key, { _vault: true, ct, iv });
+      migrated++;
+    }
+  }
+
   return migrated;
 }
 
@@ -363,7 +336,9 @@ export async function hasCleartextKeys(): Promise<boolean> {
     });
   const linkHas = await checkStore(LINK_KEYS_STORE);
   if (linkHas) return true;
-  return checkStore(ROOM_KEYS_STORE);
+  const roomHas = await checkStore(ROOM_KEYS_STORE);
+  if (roomHas) return true;
+  return checkStore(BROADCAST_KEYS_STORE);
 }
 
 /** Get all room keys from IndexedDB (creators only). */

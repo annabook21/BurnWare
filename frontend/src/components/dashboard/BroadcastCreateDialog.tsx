@@ -15,6 +15,7 @@ import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { getAccessToken } from '../../config/cognito-config';
 import { generateBroadcastKey } from '../../utils/broadcast-e2ee';
+import { saveBroadcastKey } from '../../utils/broadcast-key-store';
 import type { CreateBroadcastChannelResult } from '../../types';
 
 interface BroadcastCreateDialogProps {
@@ -88,6 +89,13 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
         encryption_key: encryptionKey,
         read_url: `${data.read_url}#${encryptionKey}`,
       };
+      // Persist key immediately so it survives even if dialog is closed with X
+      saveBroadcastKey(data.channel_id, encryptionKey, data.post_token).catch(() => {});
+      try {
+        const stored = JSON.parse(localStorage.getItem('bw:bc:encKeys') || '{}');
+        stored[data.channel_id] = encryptionKey;
+        localStorage.setItem('bw:bc:encKeys', JSON.stringify(stored));
+      } catch { /* ignore */ }
       setResult(resultWithKey);
       // Auto-copy read link so owner can share in one less click
       const readUrlWithKey = `${data.read_url}#${encryptionKey}`;

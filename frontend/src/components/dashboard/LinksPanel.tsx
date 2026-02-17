@@ -20,6 +20,7 @@ import { getAccessToken } from '../../config/cognito-config';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import { generateKeyPair } from '../../utils/e2ee';
 import { saveLinkKey } from '../../utils/key-store';
+import { saveBroadcastKey, deleteBroadcastKey } from '../../utils/broadcast-key-store';
 import type { Link, BroadcastChannel } from '../../types';
 import type { CreateBroadcastChannelResult } from '../../types';
 
@@ -92,6 +93,16 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
   useEffect(() => {
     fetchChannels();
   }, [fetchChannels]);
+
+  // One-time migration: copy any localStorage broadcast keys into IDB (vault-encrypted if available)
+  useEffect(() => {
+    const keys = channelEncryptionKeys;
+    const tokens = channelPostTokens;
+    if (Object.keys(keys).length === 0) return;
+    for (const [chId, encKey] of Object.entries(keys)) {
+      saveBroadcastKey(chId, encKey, tokens[chId]).catch(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleContextMenu = useCallback((linkId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -231,6 +242,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
         localStorage.setItem('bw:bc:encKeys', JSON.stringify(next));
         return next;
       });
+      saveBroadcastKey(result.channel_id, result.encryption_key, result.post_token).catch(() => {});
     }
     fetchChannels();
     setShowBroadcastCreateDialog(false);
@@ -263,6 +275,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
         localStorage.setItem('bw:bc:encKeys', JSON.stringify(next));
         return next;
       });
+      deleteBroadcastKey(channelId).catch(() => {});
       fetchChannels();
     } catch (error) {
       console.error('Failed to burn channel:', error);
@@ -296,6 +309,7 @@ export const LinksPanel: React.FC<LinksPanelProps> = ({
         localStorage.setItem('bw:bc:encKeys', JSON.stringify(next));
         return next;
       });
+      deleteBroadcastKey(channelId).catch(() => {});
       fetchChannels();
     } catch (error) {
       console.error('Failed to delete channel:', error);

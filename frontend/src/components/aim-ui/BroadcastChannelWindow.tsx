@@ -14,6 +14,7 @@ import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { encryptBroadcast } from '../../utils/broadcast-e2ee';
+import { getBroadcastKey } from '../../utils/broadcast-key-store';
 import { useAppSyncEvents } from '../../hooks/useAppSyncEvents';
 
 interface BroadcastChannelWindowProps {
@@ -126,6 +127,16 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
       }
     }
   }, [readUrl, channelId, initialEncryptionKey, recoveredKey]);
+
+  // Vault fallback: recover key from IndexedDB vault if localStorage is empty
+  useEffect(() => {
+    if (initialEncryptionKey || recoveredKey) return;
+    let cancelled = false;
+    getBroadcastKey(channelId).then((key) => {
+      if (key && !cancelled) setRecoveredKey(key);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [channelId, initialEncryptionKey, recoveredKey]);
 
   const handleRecoverKey = (urlOrKey: string) => {
     const trimmed = urlOrKey.trim();
