@@ -6,6 +6,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { LinksPanel } from '../components/dashboard/LinksPanel';
+import { SkiFreeWindow } from '../components/skifree/SkiFreeWindow';
 import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
 import { BackupSetupDialog } from '../components/dashboard/BackupSetupDialog';
 import { VaultUnlockDialog } from '../components/dashboard/VaultUnlockDialog';
@@ -113,6 +114,7 @@ export const Dashboard: React.FC = () => {
   const [openLinks, setOpenLinks] = useState<Map<string, OpenLink>>(new Map());
   const [openChannels, setOpenChannels] = useState<Map<string, OpenChannel>>(new Map());
   const [showStartMenu, setShowStartMenu] = useState(false);
+  const [showSkiFree, setShowSkiFree] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showBackupSetup, setShowBackupSetup] = useState(false);
   const [unbackedLinkIds, setUnbackedLinkIds] = useState<string[]>([]);
@@ -343,6 +345,15 @@ export const Dashboard: React.FC = () => {
             />
           ))}
 
+          {showSkiFree && (
+            <SkiFreeWindow
+              onClose={() => setShowSkiFree(false)}
+              initialX={80}
+              initialY={20}
+              zIndex={500}
+            />
+          )}
+
           <Taskbar>
             <StartButton onClick={() => setShowStartMenu(!showStartMenu)}>
               <img src="/burnware-logo.png" alt="" style={{ width: 20, height: 20 }} />
@@ -387,7 +398,25 @@ export const Dashboard: React.FC = () => {
                   textAlign: 'left',
                   cursor: 'pointer',
                 }}
+                onClick={() => { setShowSkiFree(true); setShowStartMenu(false); }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#000080'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}
+              >
+                🐕 SkiFree
+              </button>
+              <hr style={{ margin: 0, border: 'none', borderTop: '1px solid #808080', borderBottom: '1px solid #fff' }} />
+              <button
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  border: 'none',
+                  background: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
                 onClick={handleLogout}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#000080'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit'; }}
               >
                 Sign Out
               </button>
