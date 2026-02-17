@@ -23,6 +23,8 @@ import {
 } from '../validators/broadcast-validators';
 import {
   broadcastPostsRateLimiter,
+  broadcastChannelPostRateLimiter,
+  broadcastGuestIpRateLimiter,
   publicRateLimiter,
   authenticatedRateLimiter,
 } from '../middleware/rate-limit-middleware';
@@ -47,10 +49,11 @@ publicBroadcastRoutes.get(
   getPosts
 );
 
-// Add post (post_token in body)
+// Add post (post_token in body, or guest post if channel allows)
 publicBroadcastRoutes.post(
   '/api/v1/broadcast/:channel_id/posts',
-  publicRateLimiter,
+  broadcastChannelPostRateLimiter,
+  broadcastGuestIpRateLimiter,
   validateParams(channelIdSchema),
   validateBody(addPostSchema),
   addPost

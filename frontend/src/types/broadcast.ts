@@ -8,6 +8,7 @@ export interface BroadcastChannel {
   read_url: string;
   created_at: string;
   burned: boolean;
+  allow_guest_posts: boolean;
 }
 
 export interface BroadcastPost {
@@ -22,4 +23,9 @@ export interface CreateBroadcastChannelResult {
   post_token: string;
   display_name: string;
   encryption_key?: string; // Client-generated AES-256 key, stored in URL fragment
+}
+
+export interface BroadcastPostsResponse {
+  posts: BroadcastPost[];
+  channel: { display_name: string; allow_guest_posts: boolean; burned: boolean };
 }

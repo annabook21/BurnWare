@@ -20,6 +20,7 @@ export interface CreateChannelInput {
   display_name: string;
   expires_at?: Date | null;
   owner_user_id?: string | null;
+  allow_guest_posts?: boolean;
 }
 
 export interface CreateChannelResult {
@@ -37,7 +38,7 @@ export interface ListPostsInput {
 
 export interface AddPostInput {
   channel_id: string;
-  post_token: string;
+  post_token?: string;
   content: string;
 }
 
@@ -85,6 +86,7 @@ export class BroadcastService {
       display_name: input.display_name,
       expires_at: input.expires_at ?? null,
       owner_user_id: input.owner_user_id ?? null,
+      allow_guest_posts: input.allow_guest_posts ?? false,
     });
 
     const base = getReadUrlBase();
@@ -113,7 +115,19 @@ export class BroadcastService {
   }
 
   async addPost(input: AddPostInput): Promise<{ post_id: string; created_at: Date }> {
-    await this.verifyPostToken(input.channel_id, input.post_token);
+    const channel = await this.channelModel.findByChannelId(input.channel_id);
+    if (!channel) throw new NotFoundError('Broadcast channel');
+    if (channel.burned) throw new ValidationError('Channel has been burned');
+
+    if (input.post_token) {
+      const hash = CryptoUtils.hash(input.post_token);
+      if (hash !== channel.post_token_hash) {
+        throw new ValidationError('Invalid post token');
+      }
+    } else if (!channel.allow_guest_posts) {
+      throw new ValidationError('Post token is required');
+    }
+
     const post = await this.postModel.create({
       channel_id: input.channel_id,
       content: input.content,
@@ -122,7 +136,10 @@ export class BroadcastService {
     return { post_id: post.post_id, created_at: post.created_at };
   }
 
-  async listPosts(input: ListPostsInput): Promise<{ posts: Array<{ post_id: string; content: string; created_at: Date }> }> {
+  async listPosts(input: ListPostsInput): Promise<{
+    posts: Array<{ post_id: string; content: string; created_at: Date }>;
+    channel: { display_name: string; allow_guest_posts: boolean; burned: boolean };
+  }> {
     const channel = await this.channelModel.findByChannelId(input.channel_id);
     if (!channel) {
       throw new NotFoundError('Broadcast channel');
@@ -134,6 +151,11 @@ export class BroadcastService {
     const posts = await this.postModel.listByChannelId(input.channel_id, limit, input.before);
     return {
       posts: posts.map((p) => ({ post_id: p.post_id, content: p.content, created_at: p.created_at })),
+      channel: {
+        display_name: channel.display_name,
+        allow_guest_posts: channel.allow_guest_posts,
+        burned: channel.burned,
+      },
     };
   }
 
@@ -157,6 +179,7 @@ export class BroadcastService {
     read_url: string;
     created_at: Date;
     burned: boolean;
+    allow_guest_posts: boolean;
   }>> {
     const channels = await this.channelModel.findByOwnerUserId(userId);
     const base = getReadUrlBase();
@@ -166,6 +189,7 @@ export class BroadcastService {
       read_url: `${base}/b/${c.channel_id}`,
       created_at: c.created_at,
       burned: c.burned,
+      allow_guest_posts: c.allow_guest_posts,
     }));
   }
 }

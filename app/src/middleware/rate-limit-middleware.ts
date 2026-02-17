@@ -123,6 +123,30 @@ export const unlockRateLimiter = rateLimit({
 });
 
 /**
+ * Per-channel guest post rate limit (15 posts/5min per channel regardless of IP).
+ * Prevents any single channel from being flooded.
+ */
+export const broadcastChannelPostRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => `bc-ch:${req.params.channel_id ?? 'unknown'}`,
+});
+
+/**
+ * Per-IP guest post rate limit (20 posts/5min across ALL channels from one IP).
+ * Prevents one IP from spamming multiple channels.
+ */
+export const broadcastGuestIpRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => `bc-ip:${req.ip ?? 'unknown'}`,
+});
+
+/**
  * Rate limiter for public broadcast feed (GET posts).
  * Keys by IP; handler does not log IP or identifiers (per broadcast design).
  */

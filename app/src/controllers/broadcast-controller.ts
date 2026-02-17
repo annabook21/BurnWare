@@ -18,13 +18,14 @@ const broadcastService = new BroadcastService();
  */
 export const createChannel = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const body = req.validated as { display_name: string; expires_at?: string | null };
+    const body = req.validated as { display_name: string; expires_at?: string | null; allow_guest_posts?: boolean };
     const ownerUserId = req.user?.sub ?? null;
 
     const result = await broadcastService.createChannel({
       display_name: body.display_name,
       expires_at: body.expires_at ? new Date(body.expires_at) : null,
       owner_user_id: ownerUserId,
+      allow_guest_posts: body.allow_guest_posts,
     });
 
     ResponseUtils.success(
@@ -64,7 +65,7 @@ export const getPosts = asyncHandler(
 export const addPost = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const channel_id = req.params.channel_id as string;
-    const body = req.validated as { post_token: string; content: string };
+    const body = req.validated as { post_token?: string; content: string };
     const created = await broadcastService.addPost({
       channel_id,
       post_token: body.post_token,

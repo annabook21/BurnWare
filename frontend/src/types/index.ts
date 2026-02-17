@@ -15,4 +15,4 @@ export type {
   JoinRoomResult,
   ParticipantStatus,
 } from './room';
-export type { BroadcastChannel, BroadcastPost, CreateBroadcastChannelResult } from './broadcast';
+export type { BroadcastChannel, BroadcastPost, CreateBroadcastChannelResult, BroadcastPostsResponse } from './broadcast';

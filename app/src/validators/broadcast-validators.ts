@@ -8,6 +8,7 @@ import Joi from 'joi';
 export const createBroadcastChannelSchema = Joi.object({
   display_name: Joi.string().min(1).max(100).required().trim(),
   expires_at: Joi.date().iso().optional().allow(null),
+  allow_guest_posts: Joi.boolean().optional().default(false),
 });
 
 export const channelIdSchema = Joi.object({
@@ -15,7 +16,7 @@ export const channelIdSchema = Joi.object({
 });
 
 export const addPostSchema = Joi.object({
-  post_token: Joi.string().min(1).max(256).required(),
+  post_token: Joi.string().min(1).max(256).optional(),
   content: Joi.string().min(1).max(10000).required().trim(),
 });
 

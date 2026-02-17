@@ -17,6 +17,7 @@ export interface BroadcastChannel {
   burned: boolean;
   owner_user_id: string | null;
   qr_code_url: string | null;
+  allow_guest_posts: boolean;
 }
 
 export interface CreateBroadcastChannelData {
@@ -26,6 +27,7 @@ export interface CreateBroadcastChannelData {
   expires_at?: Date | null;
   owner_user_id?: string | null;
   qr_code_url?: string | null;
+  allow_guest_posts?: boolean;
 }
 
 export class BroadcastChannelModel {
@@ -36,9 +38,9 @@ export class BroadcastChannelModel {
   async create(data: CreateBroadcastChannelData): Promise<BroadcastChannel> {
     const query = `
       INSERT INTO broadcast_channels (
-        channel_id, post_token_hash, display_name, expires_at, owner_user_id, qr_code_url
+        channel_id, post_token_hash, display_name, expires_at, owner_user_id, qr_code_url, allow_guest_posts
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -50,6 +52,7 @@ export class BroadcastChannelModel {
         data.expires_at ?? null,
         data.owner_user_id ?? null,
         data.qr_code_url ?? null,
+        data.allow_guest_posts ?? false,
       ]);
       return result.rows[0] as BroadcastChannel;
     } catch (error) {

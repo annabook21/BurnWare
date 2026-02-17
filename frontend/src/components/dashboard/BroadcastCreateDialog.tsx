@@ -9,7 +9,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
 import { Button98 } from '../aim-ui/Button98';
-import { Field, FieldLabel, FullInput, ButtonBar } from '../aim-ui/FormField';
+import { Field, FieldLabel, FullInput, ButtonBar, HelpText } from '../aim-ui/FormField';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -57,6 +57,7 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
   onClose,
 }) => {
   const [displayName, setDisplayName] = useState('');
+  const [allowGuestPosts, setAllowGuestPosts] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CreateBroadcastChannelResult | null>(null);
 
@@ -70,7 +71,7 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
       const token = await getAccessToken();
       const response = await apiClient.post(
         endpoints.public.broadcastCreate(),
-        { display_name: displayName.trim() },
+        { display_name: displayName.trim(), allow_guest_posts: allowGuestPosts },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const raw = response.data;
@@ -174,7 +175,7 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
     <WindowFrame
       title="New broadcast channel"
       width={400}
-      height={280}
+      height={360}
       initialX={180}
       initialY={120}
       zIndex={1002}
@@ -192,6 +193,18 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
               maxLength={100}
               autoFocus
             />
+          </Field>
+          <Field>
+            <div className="field-row">
+              <input
+                id="allow-guest-posts"
+                type="checkbox"
+                checked={allowGuestPosts}
+                onChange={(e) => setAllowGuestPosts(e.target.checked)}
+              />
+              <label htmlFor="allow-guest-posts">Allow anyone with the link to post</label>
+            </div>
+            <HelpText>Guests with the read URL can add posts. Posts are still end-to-end encrypted.</HelpText>
           </Field>
           <ButtonBar>
             <Button98 type="submit" disabled={loading || !displayName.trim()}>
