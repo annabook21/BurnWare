@@ -8,6 +8,7 @@ import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
 import { BuddyListItem } from './BuddyListItem';
+import { Button98, PrimaryButton } from './Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import type { Link, StatusType, BroadcastChannel as BroadcastChannelType } from '../../types';
 
@@ -68,6 +69,9 @@ const HeaderSubtitle = styled.div`
 `;
 
 const GroupHeader = styled.button`
+  box-shadow: none;
+  min-height: auto;
+  min-width: auto;
   width: 100%;
   background: ${aimTheme.colors.gray};
   border: 1px solid ${aimTheme.colors.darkGray};
@@ -91,7 +95,8 @@ const GroupHeader = styled.button`
 
 const ScrollArea = styled.div`
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   flex: 1;
   overflow-y: auto;
   margin: ${aimTheme.spacing.sm};
@@ -105,31 +110,6 @@ const ActionButtons = styled.div`
   background: ${aimTheme.colors.gray};
 `;
 
-const Button = styled.button`
-  flex: 1;
-  padding: 4px 8px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:focus {
-    outline: 1px dotted ${aimTheme.colors.black};
-    outline-offset: -4px;
-  }
-`;
-
-const CreateButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  font-weight: bold;
-  color: ${aimTheme.colors.white};
-  text-shadow: ${aimTheme.shadows.text};
-`;
 
 const getStatus = (link: Link): StatusType => {
   if (link.burned) return 'expired';
@@ -338,9 +318,9 @@ export const BuddyList: React.FC<BuddyListProps> = ({
         </ScrollArea>
 
         <ActionButtons>
-          <CreateButton onClick={onCreateLink}>✨ New Link</CreateButton>
-          {onCreateChannel && <Button onClick={onCreateChannel}>📡 New channel</Button>}
-          {onSettings && <Button onClick={onSettings}>Settings</Button>}
+          <PrimaryButton onClick={onCreateLink} style={{ flex: 1 }}>✨ New Link</PrimaryButton>
+          {onCreateChannel && <Button98 onClick={onCreateChannel} style={{ flex: 1 }}>📡 New channel</Button98>}
+          {onSettings && <Button98 onClick={onSettings} style={{ flex: 1 }}>Settings</Button98>}
         </ActionButtons>
       </BuddyContainer>
     </WindowFrame>

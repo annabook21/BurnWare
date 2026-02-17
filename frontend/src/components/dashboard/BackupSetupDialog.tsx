@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98, PrimaryButton } from '../aim-ui/Button98';
+import { FieldLabel, ButtonBar, FullInput } from '../aim-ui/FormField';
 import { aimTheme } from '../../theme/aim-theme';
 import { toast } from 'sonner';
 import apiClient from '../../utils/api-client';
@@ -24,7 +26,9 @@ interface BackupSetupDialogProps {
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -35,24 +39,8 @@ const Message = styled.p`
   line-height: 1.4;
 `;
 
-const Label = styled.label`
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.sm};
-  display: block;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
+const InputWithMargin = styled(FullInput)`
   margin-bottom: ${aimTheme.spacing.md};
-
-  &:focus {
-    outline: none;
-  }
 `;
 
 const ErrorText = styled.p`
@@ -65,39 +53,6 @@ const ProgressText = styled.p`
   font-size: ${aimTheme.fonts.size.small};
   color: ${aimTheme.colors.darkGray};
   margin: 0 0 ${aimTheme.spacing.sm};
-`;
-
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  justify-content: flex-end;
-  margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const BackupButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-  text-shadow: ${aimTheme.shadows.text};
 `;
 
 export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
@@ -162,10 +117,10 @@ export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
   return (
     <WindowFrame
       title="Key Backup Setup"
-      width={400}
-      height={340}
-      initialX={180}
-      initialY={120}
+      width={420}
+      height={400}
+      initialX={160}
+      initialY={80}
       zIndex={1002}
       onClose={onClose}
     >
@@ -175,8 +130,8 @@ export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
           If you ever lose access to this browser, you can recover your keys
           using this passphrase.
         </Message>
-        <Label>Recovery Passphrase</Label>
-        <Input
+        <FieldLabel>Recovery Passphrase</FieldLabel>
+        <InputWithMargin
           type="password"
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
@@ -184,8 +139,8 @@ export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
           disabled={backing}
           autoFocus
         />
-        <Label>Confirm Passphrase</Label>
-        <Input
+        <FieldLabel>Confirm Passphrase</FieldLabel>
+        <InputWithMargin
           type="password"
           value={confirmPassphrase}
           onChange={(e) => setConfirmPassphrase(e.target.value)}
@@ -196,10 +151,10 @@ export const BackupSetupDialog: React.FC<BackupSetupDialogProps> = ({
         {error && <ErrorText>{error}</ErrorText>}
         {progress && <ProgressText>{progress}</ProgressText>}
         <ButtonBar>
-          <BackupButton onClick={handleBackup} disabled={!passphrase || backing}>
+          <PrimaryButton onClick={handleBackup} disabled={!passphrase || backing}>
             {backing ? 'Backing up...' : 'Backup Keys'}
-          </BackupButton>
-          <Button onClick={onClose} disabled={backing}>Skip</Button>
+          </PrimaryButton>
+          <Button98 onClick={onClose} disabled={backing}>Skip</Button98>
         </ButtonBar>
       </Container>
     </WindowFrame>

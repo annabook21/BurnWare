@@ -1,7 +1,7 @@
 /**
  * Title Bar Component
- * Classic AIM window title bar with controls
- * File size: ~120 lines
+ * Classic AIM window title bar with 98.css controls
+ * File size: ~75 lines
  */
 
 import React from 'react';
@@ -22,12 +22,6 @@ const TitleBarContainer = styled.div`
     ${aimTheme.colors.blueGradientStart},
     ${aimTheme.colors.blueGradientEnd}
   );
-  color: ${aimTheme.colors.white};
-  font-weight: ${aimTheme.fonts.weight.bold};
-  padding: 3px 5px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   cursor: move;
   user-select: none;
   height: 24px;
@@ -55,35 +49,6 @@ const TitleText = styled.span`
   white-space: nowrap;
 `;
 
-const Controls = styled.div`
-  display: flex;
-  gap: 2px;
-`;
-
-const ControlButton = styled.button`
-  width: 16px;
-  height: 14px;
-  border: 1px outset ${aimTheme.colors.gray};
-  background: ${aimTheme.colors.gray};
-  color: ${aimTheme.colors.black};
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:hover {
-    background: #D0D0D0;
-  }
-`;
-
 export const TitleBar: React.FC<TitleBarProps> = ({
   title,
   icon = '/burnware-logo.png',
@@ -92,16 +57,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({
   onMaximize,
 }) => {
   return (
-    <TitleBarContainer className="window-title-bar">
-      <TitleContent>
+    <TitleBarContainer className="title-bar window-title-bar">
+      <TitleContent className="title-bar-text">
         <TitleIcon src={icon} alt="" />
         <TitleText>{title}</TitleText>
       </TitleContent>
-      <Controls>
-        {onMinimize && <ControlButton onClick={onMinimize}>_</ControlButton>}
-        {onMaximize && <ControlButton onClick={onMaximize}>□</ControlButton>}
-        {onClose && <ControlButton onClick={onClose}>×</ControlButton>}
-      </Controls>
+      <div className="title-bar-controls">
+        {onMinimize && <button aria-label="Minimize" onClick={onMinimize} />}
+        {onMaximize && <button aria-label="Maximize" onClick={onMaximize} />}
+        {onClose && <button aria-label="Close" onClick={onClose} />}
+      </div>
     </TitleBarContainer>
   );
 };

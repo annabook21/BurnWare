@@ -2,12 +2,12 @@
  * Send Message Window Component
  * Anonymous message sending interface (AIM style).
  * After the first message, transforms into a live ChatWindow-style conversation.
- * File size: ~310 lines
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98 } from '../aim-ui/Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import axios from 'axios';
@@ -64,12 +64,9 @@ const Label = styled.label`
 
 const ComposeTextArea = styled.textarea`
   flex: 1;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.md};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
   resize: none;
-  background: ${aimTheme.colors.white};
   &:focus { outline: none; }
 `;
 
@@ -90,29 +87,14 @@ const ButtonBar = styled.div`
   margin-top: ${aimTheme.spacing.md};
 `;
 
-const AIMButton = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: bold;
-  cursor: pointer;
-  &:active { border-style: inset; }
-  &:disabled { color: ${aimTheme.colors.darkGray}; cursor: not-allowed; }
-`;
-
-// ── Live chat styles (post-send) ──
-
 const MessageArea = styled.div`
   flex: 1;
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   padding: ${aimTheme.spacing.md};
   overflow-y: auto;
   margin: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
 `;
 
 const MessageBubble = styled.div`
@@ -120,25 +102,21 @@ const MessageBubble = styled.div`
   padding: ${aimTheme.spacing.sm} 0;
   word-wrap: break-word;
 `;
-
 const Timestamp = styled.span`
   font-size: ${aimTheme.fonts.size.tiny};
   color: #666;
   margin-right: ${aimTheme.spacing.sm};
 `;
-
 const Sender = styled.span<{ $isOwner: boolean }>`
   font-weight: ${aimTheme.fonts.weight.bold};
   color: ${(p) => (p.$isOwner ? aimTheme.colors.blue : aimTheme.colors.fireRed)};
   &::before { content: ${(p) => (p.$isOwner ? "'💬 '" : "'👤 '")}; }
 `;
-
 const MessageContent = styled.div`
   color: ${aimTheme.colors.black};
   margin-top: 2px;
   line-height: 1.4;
 `;
-
 const InputArea = styled.div`
   border-top: 1px solid ${aimTheme.colors.darkGray};
   background: ${aimTheme.colors.gray};
@@ -148,12 +126,9 @@ const InputArea = styled.div`
 const ChatInput = styled.textarea`
   width: calc(100% - 8px);
   height: 50px;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
   resize: none;
-  background: ${aimTheme.colors.white};
   margin: ${aimTheme.spacing.sm};
   &:focus { outline: none; }
 `;
@@ -418,9 +393,9 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
               </div>
             )}
             <ButtonBar>
-              <AIMButton onClick={handleFollowUp} disabled={!message.trim() || sending}>
+              <Button98 style={{ fontWeight: 'bold' }} onClick={handleFollowUp} disabled={!message.trim() || sending}>
                 {sending ? 'Sending...' : 'Send'}
-              </AIMButton>
+              </Button98>
             </ButtonBar>
           </InputArea>
           {opsecInfo && (
@@ -502,7 +477,8 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
                 placeholder="Enter the passphrase the link owner gave you"
                 style={{
                   width: '100%',
-                  border: aimTheme.borders.inset,
+                  boxShadow: 'var(--border-field)',
+                  border: 'none',
                   padding: aimTheme.spacing.sm,
                   fontFamily: aimTheme.fonts.primary,
                   fontSize: aimTheme.fonts.size.normal,
@@ -513,9 +489,9 @@ export const SendMessageWindow: React.FC<SendMessageWindowProps> = ({ linkId }) 
             </div>
           )}
           <ButtonBar>
-            <AIMButton onClick={handleFirstSend} disabled={!linkInfo?.public_key || !message.trim() || sending || (!!linkInfo?.opsec?.passphrase_required && !passphrase)}>
+            <Button98 style={{ fontWeight: 'bold' }} onClick={handleFirstSend} disabled={!linkInfo?.public_key || !message.trim() || sending || (!!linkInfo?.opsec?.passphrase_required && !passphrase)}>
               {sending ? 'Sending...' : 'Send Message'}
-            </AIMButton>
+            </Button98>
           </ButtonBar>
         </ComposeSection>
       </Container>

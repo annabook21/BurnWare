@@ -61,8 +61,6 @@ export const aimTheme = {
   },
 
   borders: {
-    outset: '2px outset #C0C0C0',
-    inset: '2px inset #C0C0C0',
     solid: '1px solid #808080',
   },
 

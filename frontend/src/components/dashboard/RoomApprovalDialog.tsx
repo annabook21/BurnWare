@@ -7,6 +7,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98, ApproveButton, RejectButton } from '../aim-ui/Button98';
+import { ConfirmDialog } from '../aim-ui/ConfirmDialog';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -23,7 +25,9 @@ interface RoomApprovalDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -37,7 +41,8 @@ const Header = styled.div`
 const ParticipantList = styled.div`
   flex: 1;
   overflow-y: auto;
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   background: ${aimTheme.colors.white};
 `;
 
@@ -71,43 +76,13 @@ const Actions = styled.div`
   gap: ${aimTheme.spacing.sm};
 `;
 
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const ApproveButton = styled(Button)`
-  background: linear-gradient(to bottom, #90ee90, #32cd32);
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-`;
-
-const RejectButton = styled(Button)`
-  background: linear-gradient(to bottom, #ffcccb, #ff6b6b);
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-`;
-
 const EmptyState = styled.div`
   text-align: center;
   padding: ${aimTheme.spacing.xl};
   color: ${aimTheme.colors.darkGray};
 `;
 
-const RefreshButton = styled(Button)`
+const RefreshBtn = styled(Button98)`
   margin-top: ${aimTheme.spacing.md};
 `;
 
@@ -115,6 +90,7 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
   const [pending, setPending] = useState<RoomParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<RoomParticipant | null>(null);
 
   const fetchPending = useCallback(async () => {
     try {
@@ -170,9 +146,14 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
     }
   };
 
-  const handleReject = async (participant: RoomParticipant) => {
-    if (!window.confirm(`Reject ${participant.display_name || 'this participant'}?`)) return;
+  const handleReject = (participant: RoomParticipant) => {
+    setRejectTarget(participant);
+  };
 
+  const confirmReject = async () => {
+    if (!rejectTarget) return;
+    const participant = rejectTarget;
+    setRejectTarget(null);
     setProcessing(participant.participant_id);
 
     try {
@@ -201,10 +182,10 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
   return (
     <WindowFrame
       title={`👥 Pending - ${room.display_name}`}
-      width={400}
-      height={400}
-      initialX={220}
-      initialY={120}
+      width={440}
+      height={480}
+      initialX={160}
+      initialY={80}
       zIndex={1003}
       onClose={onClose}
     >
@@ -222,7 +203,7 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
             <EmptyState>
               No pending requests
               <br />
-              <RefreshButton onClick={fetchPending}>🔄 Refresh</RefreshButton>
+              <RefreshBtn onClick={fetchPending}>🔄 Refresh</RefreshBtn>
             </EmptyState>
           ) : (
             pending.map((p) => (
@@ -235,12 +216,14 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
                   <ApproveButton
                     onClick={() => handleApprove(p)}
                     disabled={!!processing}
+                    aria-label="Approve"
                   >
                     {processing === p.participant_id ? '...' : '✓'}
                   </ApproveButton>
                   <RejectButton
                     onClick={() => handleReject(p)}
                     disabled={!!processing}
+                    aria-label="Reject"
                   >
                     ✗
                   </RejectButton>
@@ -250,10 +233,21 @@ export const RoomApprovalDialog: React.FC<RoomApprovalDialogProps> = ({ room, on
           )}
         </ParticipantList>
 
-        <RefreshButton onClick={fetchPending} disabled={loading}>
+        <RefreshBtn onClick={fetchPending} disabled={loading}>
           🔄 Refresh
-        </RefreshButton>
+        </RefreshBtn>
       </DialogContainer>
+
+      {rejectTarget && (
+        <ConfirmDialog
+          title="Reject Participant"
+          message={`Reject ${rejectTarget.display_name || 'this participant'}?`}
+          icon="⚠️"
+          confirmText="Reject"
+          onConfirm={confirmReject}
+          onCancel={() => setRejectTarget(null)}
+        />
+      )}
     </WindowFrame>
   );
 };

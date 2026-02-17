@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { toast } from 'sonner';
+import { Button98, PrimaryButton } from '../components/aim-ui/Button98';
 import { aimTheme } from '../theme/aim-theme';
 import { useRoomPolling } from '../hooks/useRoomPolling';
 import { getRoomKey } from '../utils/key-store';
@@ -37,16 +38,8 @@ const RoomTitle = styled.h1`
   gap: ${aimTheme.spacing.sm};
 `;
 
-const LeaveButton = styled.button`
-  padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
+const LeaveBtn = styled(Button98)`
+  min-width: auto;
 `;
 
 const ChatContainer = styled.div`
@@ -63,7 +56,8 @@ const MessageList = styled.div<{ $blurred?: boolean }>`
   flex: 1;
   overflow-y: auto;
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   padding: ${aimTheme.spacing.md};
   margin-bottom: ${aimTheme.spacing.md};
 
@@ -111,37 +105,13 @@ const InputContainer = styled.div`
   gap: ${aimTheme.spacing.sm};
 `;
 
-const TextInput = styled.input`
+const ChatInput = styled.input`
   flex: 1;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.md};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
 
   &:focus {
     outline: none;
-  }
-`;
-
-const SendButton = styled.button`
-  padding: ${aimTheme.spacing.md} ${aimTheme.spacing.xl};
-  border: ${aimTheme.borders.outset};
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: bold;
-  cursor: pointer;
-  text-shadow: ${aimTheme.shadows.text};
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
   }
 `;
 
@@ -263,9 +233,9 @@ export const RoomPage: React.FC = () => {
           <EmptyState>
             {error}
             <br />
-            <LeaveButton onClick={() => navigate('/')} style={{ marginTop: '16px' }}>
+            <LeaveBtn onClick={() => navigate('/')} style={{ marginTop: '16px' }}>
               Return Home
-            </LeaveButton>
+            </LeaveBtn>
           </EmptyState>
         </ChatContainer>
       </PageContainer>
@@ -276,7 +246,7 @@ export const RoomPage: React.FC = () => {
     <PageContainer>
       <Header>
         <RoomTitle>🔒 Secure Room</RoomTitle>
-        <LeaveButton onClick={handleLeave}>Leave Room</LeaveButton>
+        <LeaveBtn onClick={handleLeave}>Leave Room</LeaveBtn>
       </Header>
 
       <ChatContainer>
@@ -302,7 +272,7 @@ export const RoomPage: React.FC = () => {
         {isBlurred && <BlurNotice>🔒 Return to this tab to view messages</BlurNotice>}
 
         <InputContainer>
-          <TextInput
+          <ChatInput
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
@@ -311,9 +281,9 @@ export const RoomPage: React.FC = () => {
             disabled={isBlurred || loading}
             autoFocus
           />
-          <SendButton onClick={handleSend} disabled={!inputText.trim() || sending || isBlurred}>
+          <PrimaryButton onClick={handleSend} disabled={!inputText.trim() || sending || isBlurred}>
             {sending ? '...' : 'Send'}
-          </SendButton>
+          </PrimaryButton>
         </InputContainer>
       </ChatContainer>
 

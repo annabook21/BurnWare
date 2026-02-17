@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { StatusIndicator } from './StatusIndicator';
 import { aimTheme } from '../../theme/aim-theme';
 
@@ -53,11 +53,9 @@ const ItemName = styled.span`
   white-space: nowrap;
 `;
 
-const pulseKeyframes = `
-  @keyframes badgePulse {
-    0%, 100% { transform: scale(1); background: ${aimTheme.colors.brandOrange}; }
-    50% { transform: scale(1.3); background: #FF3333; }
-  }
+const badgePulse = keyframes`
+  0%, 100% { transform: scale(1); background: ${aimTheme.colors.brandOrange}; }
+  50% { transform: scale(1.3); background: #FF3333; }
 `;
 
 const MessageBadge = styled.span<{ $pulsing?: boolean }>`
@@ -69,7 +67,7 @@ const MessageBadge = styled.span<{ $pulsing?: boolean }>`
   font-weight: ${aimTheme.fonts.weight.bold};
   min-width: 18px;
   text-align: center;
-  ${(props) => props.$pulsing && `animation: badgePulse 1s ease-in-out infinite;`}
+  ${(props) => props.$pulsing && `animation: ${badgePulse} 1s ease-in-out infinite;`}
 `;
 
 const RoomIcon = styled.span<{ $expired?: boolean }>`
@@ -88,23 +86,20 @@ export const BuddyListItem: React.FC<BuddyListItemProps> = React.memo(({
   onContextMenu,
 }) => {
   return (
-    <>
-      <style>{pulseKeyframes}</style>
-      <ItemContainer status={status} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
-        <ItemLeft>
-          {isRoom ? (
-            <RoomIcon $expired={status === 'expired'}>🔒</RoomIcon>
-          ) : (
-            <StatusIndicator status={status} size={14} />
-          )}
-          <ItemName>{name}</ItemName>
-        </ItemLeft>
-        {messageCount > 0 && (
-          <MessageBadge $pulsing={hasNewMessages}>
-            {isRoom ? `👥${messageCount}` : messageCount}
-          </MessageBadge>
+    <ItemContainer status={status} onClick={onClick} onDoubleClick={onDoubleClick} onContextMenu={onContextMenu}>
+      <ItemLeft>
+        {isRoom ? (
+          <RoomIcon $expired={status === 'expired'} aria-label="Secure room">🔒</RoomIcon>
+        ) : (
+          <StatusIndicator status={status} size={14} />
         )}
-      </ItemContainer>
-    </>
+        <ItemName title={name}>{name}</ItemName>
+      </ItemLeft>
+      {messageCount > 0 && (
+        <MessageBadge $pulsing={hasNewMessages}>
+          {isRoom ? `👥${messageCount}` : messageCount}
+        </MessageBadge>
+      )}
+    </ItemContainer>
   );
 });

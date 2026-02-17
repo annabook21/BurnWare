@@ -7,6 +7,8 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
+import { Button98 } from './Button98';
+import { ButtonBar } from './FormField';
 import { aimTheme } from '../../theme/aim-theme';
 
 interface AwayMessageDialogProps {
@@ -21,7 +23,9 @@ interface AwayMessageDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -35,16 +39,14 @@ const Label = styled.label`
 const TextArea = styled.textarea`
   width: 100%;
   height: 120px;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
   resize: none;
-  background: ${aimTheme.colors.white};
   margin-bottom: ${aimTheme.spacing.md};
 
   &:focus {
-    outline: none;
+    outline: 1px dotted black;
+    outline-offset: -2px;
   }
 `;
 
@@ -55,34 +57,6 @@ const CharCount = styled.div`
   margin-bottom: ${aimTheme.spacing.md};
 `;
 
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  justify-content: flex-end;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const SaveButton = styled(Button)`
-  font-weight: bold;
-`;
 
 const HelpText = styled.div`
   font-size: ${aimTheme.fonts.size.tiny};
@@ -135,8 +109,8 @@ export const AwayMessageDialog: React.FC<AwayMessageDialogProps> = ({
           {remainingChars} characters remaining
         </CharCount>
         <ButtonBar>
-          <SaveButton onClick={handleSave}>Save</SaveButton>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button98 onClick={handleSave} style={{ fontWeight: 'bold' }}>Save</Button98>
+          <Button98 onClick={onClose}>Cancel</Button98>
         </ButtonBar>
       </DialogContainer>
     </WindowFrame>

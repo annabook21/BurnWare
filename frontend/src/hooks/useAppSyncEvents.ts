@@ -224,19 +224,25 @@ function ensureConnection(): void {
 
       case 'subscribe_error': {
         const failedSub = subscriptions.get(msg.id);
-        console.warn('AppSync subscribe error:', msg.errors, 'channel:', failedSub?.channel);
+        if (import.meta.env.DEV) {
+          console.warn('AppSync subscribe error:', msg.errors, 'channel:', failedSub?.channel);
+        }
         pendingSubscribes.delete(msg.id);
         break;
       }
 
       case 'broadcast_error': {
         const sub = subscriptions.get(msg.id);
-        console.warn('AppSync broadcast error:', msg.errors, 'channel:', sub?.channel);
+        if (import.meta.env.DEV) {
+          console.warn('AppSync broadcast error:', msg.errors, 'channel:', sub?.channel);
+        }
         break;
       }
 
       case 'connection_error':
-        console.warn('AppSync connection error:', msg.errors);
+        if (import.meta.env.DEV) {
+          console.warn('AppSync connection error:', msg.errors);
+        }
         break;
     }
   };

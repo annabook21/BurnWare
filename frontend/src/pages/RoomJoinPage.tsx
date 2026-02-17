@@ -8,6 +8,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { PrimaryButton } from '../components/aim-ui/Button98';
+import { FullInput, Field as FormField, FieldLabel } from '../components/aim-ui/FormField';
 import { aimTheme } from '../theme/aim-theme';
 import apiClient from '../utils/api-client';
 import { endpoints } from '../config/api-endpoints';
@@ -27,7 +29,7 @@ const PageContainer = styled.div`
 const JoinCard = styled.div`
   width: 100%;
   max-width: 400px;
-  border: ${aimTheme.borders.outset};
+  border: none;
   background: ${aimTheme.colors.gray};
   box-shadow: ${aimTheme.shadows.window};
 `;
@@ -46,54 +48,14 @@ const CardContent = styled.div`
   padding: ${aimTheme.spacing.lg};
 `;
 
-const Field = styled.div`
-  margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const Label = styled.label`
-  display: block;
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.sm};
-`;
-
-const Input = styled.input`
+const JoinButton = styled(PrimaryButton)`
   width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const Button = styled.button`
-  width: 100%;
-  padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.outset};
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: bold;
-  text-shadow: ${aimTheme.shadows.text};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
 `;
 
 const StatusBox = styled.div<{ $status: 'pending' | 'approved' | 'error' }>`
   padding: ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin-bottom: ${aimTheme.spacing.lg};
   text-align: center;
   background: ${(p) =>
@@ -364,9 +326,9 @@ export const RoomJoinPage: React.FC = () => {
       <JoinCard>
         <CardHeader>🔒 Join Secure Room</CardHeader>
         <CardContent>
-          <Field>
-            <Label>Display Name (optional)</Label>
-            <Input
+          <FormField>
+            <FieldLabel>Display Name (optional)</FieldLabel>
+            <FullInput
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, 50))}
@@ -375,13 +337,13 @@ export const RoomJoinPage: React.FC = () => {
               autoFocus
             />
             <HelpText>Leave blank to join anonymously</HelpText>
-          </Field>
+          </FormField>
 
           {error && <ErrorText>{error}</ErrorText>}
 
-          <Button onClick={handleJoin} disabled={joining}>
+          <JoinButton onClick={handleJoin} disabled={joining}>
             {joining ? 'Joining...' : '🚪 Join Room'}
-          </Button>
+          </JoinButton>
 
           <HelpText style={{ marginTop: aimTheme.spacing.lg, textAlign: 'center' }}>
             All messages are end-to-end encrypted.

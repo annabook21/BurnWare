@@ -247,7 +247,7 @@ export class FrontendStack extends Stack {
                 '(test -f package-lock.json && npm ci || npm install)',
                 'npm run build',
                 'cp -r dist/* /asset-output/',
-                'echo "build $(node -e \\"console.log(new Date().toISOString())\\")" > /asset-output/build-id.txt',
+                'echo "build $(date +%Y-%m-%dT%H:%M:%S)Z" > /asset-output/build-id.txt',
               ].join(' && '),
             ],
             user: 'root',

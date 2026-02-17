@@ -37,7 +37,8 @@ const LoadingText = styled.div`
 const LoadingBar = styled.div`
   width: 200px;
   height: 20px;
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   background: ${aimTheme.colors.white};
   position: relative;
   overflow: hidden;

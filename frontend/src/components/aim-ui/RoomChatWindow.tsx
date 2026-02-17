@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'sonner';
 import { WindowFrame } from './WindowFrame';
+import { PrimaryButton } from './Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -44,7 +45,8 @@ const MessageArea = styled.div<{ $blurred?: boolean }>`
   overflow-y: auto;
   padding: ${aimTheme.spacing.sm};
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.sm};
 
   ${(p) =>
@@ -93,37 +95,15 @@ const InputArea = styled.div`
 
 const TextInput = styled.input`
   flex: 1;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
 
   &:focus {
-    outline: none;
+    outline: 1px dotted black;
+    outline-offset: -2px;
   }
 `;
 
-const SendButton = styled.button`
-  padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.outset};
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: bold;
-  cursor: pointer;
-  text-shadow: ${aimTheme.shadows.text};
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
 
 const StatusBar = styled.div`
   padding: 2px ${aimTheme.spacing.sm};
@@ -383,7 +363,7 @@ export const RoomChatWindow: React.FC<RoomChatWindowProps> = ({
             <p style={{ marginBottom: aimTheme.spacing.md, fontSize: aimTheme.fonts.size.small, color: aimTheme.colors.darkGray }}>
               Unlock your vault (e.g. from the taskbar) to open this room.
             </p>
-            <SendButton onClick={onClose}>OK</SendButton>
+            <PrimaryButton onClick={onClose}>OK</PrimaryButton>
           </div>
         )}
         {!roomKeys && !keysError && (
@@ -429,9 +409,9 @@ export const RoomChatWindow: React.FC<RoomChatWindowProps> = ({
             disabled={isBlurred || !roomKeys}
             autoFocus
           />
-          <SendButton onClick={handleSend} disabled={!inputText.trim() || sending || isBlurred}>
+          <PrimaryButton onClick={handleSend} disabled={!inputText.trim() || sending || isBlurred}>
             Send
-          </SendButton>
+          </PrimaryButton>
         </InputArea>
 
         <StatusBar>

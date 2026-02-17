@@ -3,7 +3,7 @@
  * Win98-style right-click menu for buddy list items
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { aimTheme } from '../../theme/aim-theme';
 
@@ -52,9 +52,10 @@ const MenuItem = styled.button`
   font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.normal};
 
-  &:hover {
+  &:hover, &:focus {
     background: ${aimTheme.colors.blue};
     color: ${aimTheme.colors.white};
+    outline: none;
   }
 `;
 
@@ -77,40 +78,88 @@ export const BuddyContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
 
+  // Viewport bounds: clamp menu to viewport after mount
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const el = menuRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const clampedX = Math.min(x, window.innerWidth - rect.width - 4);
+    const clampedY = Math.min(y, window.innerHeight - rect.height - 4);
+    setPos({ x: Math.max(0, clampedX), y: Math.max(0, clampedY) });
+  }, [x, y]);
+
+  // AutoFocus first item
+  useEffect(() => {
+    const first = menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]');
+    first?.focus();
+  }, []);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') { onClose(); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]');
+    if (!items || items.length === 0) return;
+
+    if (e.key === 'Enter') return; // Let native click handle it
+
+    e.preventDefault();
+    const active = document.activeElement as HTMLElement;
+    const idx = Array.from(items).indexOf(active as HTMLButtonElement);
+    if (e.key === 'ArrowDown') {
+      items[(idx + 1) % items.length].focus();
+    } else if (e.key === 'ArrowUp') {
+      items[(idx - 1 + items.length) % items.length].focus();
+    }
   }, [onClose]);
 
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   return (
-    <MenuOverlay onClick={onClose}>
-      <Menu ref={menuRef} $x={x} $y={y} onClick={(e) => e.stopPropagation()}>
+    <>
+      <MenuOverlay
+        onClick={onClose}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-hidden="true"
+      />
+      <Menu
+        ref={menuRef}
+        $x={pos.x}
+        $y={pos.y}
+        role="menu"
+        aria-label="Link actions"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <MenuItem
+          role="menuitem"
           onClick={() => { onOpenThreads(); onClose(); }}
           style={!hasMessages ? { color: aimTheme.colors.darkGray } : undefined}
         >
           {hasMessages ? 'View messages' : 'Send an Instant Message'}
         </MenuItem>
         {onOpenSendPage && (
-          <MenuItem onClick={() => { onOpenSendPage(); onClose(); }}>
+          <MenuItem role="menuitem" onClick={() => { onOpenSendPage(); onClose(); }}>
             Open send page
           </MenuItem>
         )}
-        <MenuItem onClick={() => { onGetBuddyInfo(); onClose(); }}>
+        <MenuItem role="menuitem" onClick={() => { onGetBuddyInfo(); onClose(); }}>
           Get Buddy Info
         </MenuItem>
-        <MenuItem onClick={() => { onEditDescription(); onClose(); }}>
+        <MenuItem role="menuitem" onClick={() => { onEditDescription(); onClose(); }}>
           Edit Away Message
         </MenuItem>
         <MenuDivider />
-        <MenuItem onClick={() => { onDelete(); onClose(); }}>
+        <MenuItem role="menuitem" onClick={() => { onDelete(); onClose(); }}>
           Delete Buddy
         </MenuItem>
       </Menu>
-    </MenuOverlay>
+    </>
   );
 };

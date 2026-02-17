@@ -10,6 +10,7 @@ import { ThreadsPanel } from '../components/dashboard/ThreadsPanel';
 import { BackupSetupDialog } from '../components/dashboard/BackupSetupDialog';
 import { VaultUnlockDialog } from '../components/dashboard/VaultUnlockDialog';
 import { BroadcastChannelWindow } from '../components/aim-ui/BroadcastChannelWindow';
+import { ConfirmDialog } from '../components/aim-ui/ConfirmDialog';
 import { WindowManager } from '../components/aim-ui/WindowManager';
 import { SoundManager } from '../components/aim-ui/SoundManager';
 import { useAIMSounds } from '../hooks/useAIMSounds';
@@ -46,7 +47,7 @@ const Taskbar = styled.div`
 
 const StartButton = styled.button`
   padding: 2px 12px;
-  border: ${aimTheme.borders.outset};
+  border: none;
   background: ${aimTheme.colors.gray};
   font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.normal};
@@ -70,7 +71,8 @@ const TaskbarSeparator = styled.div`
 
 const TaskbarButton = styled.button`
   padding: 2px 8px;
-  border: ${aimTheme.borders.inset};
+  border: none;
+  box-shadow: var(--border-field);
   background: ${aimTheme.colors.gray};
   font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.small};
@@ -81,14 +83,15 @@ const TaskbarButton = styled.button`
   white-space: nowrap;
 
   &:active {
-    border-style: outset;
+    box-shadow: var(--border-raised-outer), var(--border-raised-inner);
   }
 `;
 
 const Clock = styled.div`
   margin-left: auto;
   padding: 2px 8px;
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   font-size: ${aimTheme.fonts.size.small};
 `;
 
@@ -110,6 +113,7 @@ export const Dashboard: React.FC = () => {
   const [openLinks, setOpenLinks] = useState<Map<string, OpenLink>>(new Map());
   const [openChannels, setOpenChannels] = useState<Map<string, OpenChannel>>(new Map());
   const [showStartMenu, setShowStartMenu] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [showBackupSetup, setShowBackupSetup] = useState(false);
   const [unbackedLinkIds, setUnbackedLinkIds] = useState<string[]>([]);
   const [time, setTime] = useState(new Date());
@@ -246,11 +250,15 @@ export const Dashboard: React.FC = () => {
   }, [acknowledgeLink]);
 
   const handleLogout = () => {
-    if (window.confirm('Sign out of BurnWare?')) {
-      playBuddyOut();
-      signOut();
-      setTimeout(() => window.location.reload(), 500);
-    }
+    setShowStartMenu(false);
+    setShowSignOutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowSignOutConfirm(false);
+    playBuddyOut();
+    signOut();
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const handleOpenChannel = useCallback((channelId: string, channelName: string, readUrl: string, postToken?: string, encryptionKey?: string) => {
@@ -346,6 +354,17 @@ export const Dashboard: React.FC = () => {
             <SoundManager muted={soundsMuted} onToggleMute={() => setSoundsMuted(!soundsMuted)} />
             <Clock>{time.toLocaleTimeString()}</Clock>
           </Taskbar>
+
+          {showSignOutConfirm && (
+            <ConfirmDialog
+              title="Sign Out"
+              message="Sign out of BurnWare?"
+              icon="❓"
+              confirmText="Sign Out"
+              onConfirm={confirmLogout}
+              onCancel={() => setShowSignOutConfirm(false)}
+            />
+          )}
 
           {showStartMenu && (
             <div

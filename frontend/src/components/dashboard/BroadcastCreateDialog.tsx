@@ -8,6 +8,8 @@ import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98 } from '../aim-ui/Button98';
+import { Field, FieldLabel, FullInput, ButtonBar } from '../aim-ui/FormField';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -23,34 +25,18 @@ interface BroadcastCreateDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
-`;
-
-const Field = styled.div`
-  margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const Label = styled.label`
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.sm};
-  display: block;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
 `;
 
 const QRContainer = styled.div`
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.lg};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.md} 0;
   align-self: center;
 `;
@@ -60,25 +46,9 @@ const UrlBlock = styled.div`
   word-break: break-all;
   padding: ${aimTheme.spacing.sm};
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.sm} 0;
-`;
-
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  flex-wrap: wrap;
-  margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
 `;
 
 export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
@@ -158,34 +128,34 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
     return (
       <WindowFrame
         title="Broadcast channel created"
-        width={400}
-        height={520}
-        initialX={200}
-        initialY={100}
+        width={440}
+        height={580}
+        initialX={160}
+        initialY={60}
         zIndex={1002}
         onClose={onClose}
       >
         <DialogContainer>
           <Field>
-            <Label>Channel: {result.display_name}</Label>
-            <Label style={{ fontWeight: 'normal', fontSize: aimTheme.fonts.size.small }}>
+            <FieldLabel>Channel: {result.display_name}</FieldLabel>
+            <FieldLabel style={{ fontWeight: 'normal', fontSize: aimTheme.fonts.size.small }}>
               Read URL (share this so people can view the feed):
-            </Label>
+            </FieldLabel>
             <UrlBlock>{result.read_url}</UrlBlock>
           </Field>
           <Field>
-            <Label style={{ fontSize: aimTheme.fonts.size.small }}>
+            <FieldLabel style={{ fontSize: aimTheme.fonts.size.small }}>
               Post token (keep secret — use to add posts or burn the channel):
-            </Label>
+            </FieldLabel>
             <UrlBlock style={{ wordBreak: 'break-all' }}>{result.post_token}</UrlBlock>
           </Field>
           <QRContainer>
             <QRCodeSVG value={result.read_url} size={200} level="H" />
           </QRContainer>
           <ButtonBar>
-            <Button onClick={handleCopyLink}>Copy read link</Button>
-            <Button onClick={handleCopyToken}>Copy post token</Button>
-            <Button onClick={handleDone}>Done</Button>
+            <Button98 onClick={handleCopyLink}>Copy read link</Button98>
+            <Button98 onClick={handleCopyToken}>Copy post token</Button98>
+            <Button98 onClick={handleDone}>Done</Button98>
           </ButtonBar>
         </DialogContainer>
       </WindowFrame>
@@ -195,9 +165,9 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
   return (
     <WindowFrame
       title="New broadcast channel"
-      width={360}
-      height={200}
-      initialX={220}
+      width={400}
+      height={280}
+      initialX={180}
       initialY={120}
       zIndex={1002}
       onClose={onClose}
@@ -205,8 +175,8 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
       <DialogContainer>
         <form onSubmit={handleSubmit}>
           <Field>
-            <Label>Channel name</Label>
-            <Input
+            <FieldLabel>Channel name</FieldLabel>
+            <FullInput
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -216,12 +186,12 @@ export const BroadcastCreateDialog: React.FC<BroadcastCreateDialogProps> = ({
             />
           </Field>
           <ButtonBar>
-            <Button type="submit" disabled={loading || !displayName.trim()}>
+            <Button98 type="submit" disabled={loading || !displayName.trim()}>
               {loading ? 'Creating…' : 'Create channel'}
-            </Button>
-            <Button type="button" onClick={onClose}>
+            </Button98>
+            <Button98 type="button" onClick={onClose}>
               Cancel
-            </Button>
+            </Button98>
           </ButtonBar>
         </form>
       </DialogContainer>

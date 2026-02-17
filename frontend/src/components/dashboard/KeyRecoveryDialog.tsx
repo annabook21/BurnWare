@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98, PrimaryButton } from '../aim-ui/Button98';
+import { ButtonBar, FullInput } from '../aim-ui/FormField';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -24,7 +26,9 @@ interface KeyRecoveryDialogProps {
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -35,57 +39,14 @@ const Message = styled.p`
   line-height: 1.4;
 `;
 
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
+const InputWithMargin = styled(FullInput)`
   margin-bottom: ${aimTheme.spacing.md};
-
-  &:focus {
-    outline: none;
-  }
 `;
 
 const ErrorText = styled.p`
   color: ${aimTheme.colors.fireRed};
   font-size: ${aimTheme.fonts.size.small};
   margin: 0 0 ${aimTheme.spacing.sm};
-`;
-
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  justify-content: flex-end;
-  margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const RecoverButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-  text-shadow: ${aimTheme.shadows.text};
 `;
 
 export const KeyRecoveryDialog: React.FC<KeyRecoveryDialogProps> = ({
@@ -144,10 +105,10 @@ export const KeyRecoveryDialog: React.FC<KeyRecoveryDialogProps> = ({
   return (
     <WindowFrame
       title={`Key Recovery - ${linkName}`}
-      width={380}
-      height={260}
-      initialX={200}
-      initialY={150}
+      width={420}
+      height={320}
+      initialX={160}
+      initialY={120}
       zIndex={1002}
       onClose={onClose}
     >
@@ -156,7 +117,7 @@ export const KeyRecoveryDialog: React.FC<KeyRecoveryDialogProps> = ({
           Your encryption key for <strong>{linkName}</strong> is missing from this browser.
           Enter your recovery passphrase to restore it.
         </Message>
-        <Input
+        <InputWithMargin
           type="password"
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
@@ -167,10 +128,10 @@ export const KeyRecoveryDialog: React.FC<KeyRecoveryDialogProps> = ({
         />
         {error && <ErrorText>{error}</ErrorText>}
         <ButtonBar>
-          <RecoverButton onClick={handleRecover} disabled={!passphrase || recovering}>
+          <PrimaryButton onClick={handleRecover} disabled={!passphrase || recovering}>
             {recovering ? 'Recovering...' : 'Recover Key'}
-          </RecoverButton>
-          <Button onClick={onClose}>Cancel</Button>
+          </PrimaryButton>
+          <Button98 onClick={onClose}>Cancel</Button98>
         </ButtonBar>
       </Container>
     </WindowFrame>

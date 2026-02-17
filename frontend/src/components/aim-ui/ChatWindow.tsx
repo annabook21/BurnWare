@@ -7,6 +7,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
+import { ConfirmDialog } from './ConfirmDialog';
+import { CharCounter } from './CharCounter';
+import { Button98, BurnButton as BurnBtn } from './Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import { useAIMSounds } from '../../hooks/useAIMSounds';
 import type { Message } from '../../types';
@@ -35,12 +38,11 @@ const ChatContainer = styled.div`
 const MessageArea = styled.div`
   flex: 1;
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   padding: ${aimTheme.spacing.md};
   overflow-y: auto;
   margin: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
 `;
 
 const MessageBubble = styled.div<{ isOwner: boolean }>`
@@ -79,16 +81,14 @@ const InputArea = styled.div`
 const TextInput = styled.textarea`
   width: calc(100% - 8px);
   height: 60px;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
   resize: none;
-  background: ${aimTheme.colors.white};
   margin: ${aimTheme.spacing.sm};
 
   &:focus {
-    outline: none;
+    outline: 1px dotted black;
+    outline-offset: -2px;
   }
 `;
 
@@ -98,50 +98,6 @@ const ButtonBar = styled.div`
   padding: 0 ${aimTheme.spacing.sm} ${aimTheme.spacing.sm};
 `;
 
-const SendButton = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  font-weight: bold;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const BurnButton = styled.button`
-  padding: 4px 12px;
-  background: linear-gradient(
-    to bottom,
-    ${aimTheme.colors.brandOrange},
-    ${aimTheme.colors.fireRed}
-  );
-  color: ${aimTheme.colors.white};
-  border: 2px outset ${aimTheme.colors.fireRed};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: bold;
-  cursor: pointer;
-  text-shadow: ${aimTheme.shadows.text};
-
-  &:hover {
-    background: linear-gradient(to bottom, #FF8C55, #FF6520);
-  }
-
-  &:active {
-    border-style: inset;
-  }
-`;
-
-const CloseButton = styled(SendButton)``;
 
 const formatTime = (dateString: string): string => {
   const date = new Date(dateString);
@@ -167,6 +123,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [showBurnConfirm, setShowBurnConfirm] = useState(false);
   const messageEndRef = useRef<HTMLDivElement>(null);
   const { playFireIgnite } = useAIMSounds();
 
@@ -194,9 +151,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const handleBurnClick = () => {
-    if (window.confirm('🔥 This will permanently burn this thread and delete all messages. Continue?')) {
-      onBurn();
-    }
+    setShowBurnConfirm(true);
   };
 
   return (
@@ -239,16 +194,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onKeyDown={handleKeyDown}
             placeholder="Type your reply here..."
             maxLength={5000}
+            autoFocus
           />
+          <div style={{ padding: `0 ${aimTheme.spacing.sm}` }}>
+            <CharCounter current={inputValue.length} max={5000} />
+          </div>
           <ButtonBar>
-            <SendButton onClick={handleSend} disabled={!inputValue.trim() || isSending}>
+            <Button98 style={{ fontWeight: 'bold' }} onClick={handleSend} disabled={!inputValue.trim() || isSending}>
               {isSending ? 'Sending...' : 'Send'}
-            </SendButton>
-            <BurnButton onClick={handleBurnClick}>🔥 Burn</BurnButton>
-            <CloseButton onClick={onClose}>Close</CloseButton>
+            </Button98>
+            <BurnBtn onClick={handleBurnClick}>🔥 Burn</BurnBtn>
+            <Button98 onClick={onClose}>Close</Button98>
           </ButtonBar>
         </InputArea>
       </ChatContainer>
+
+      {showBurnConfirm && (
+        <ConfirmDialog
+          title="Burn Thread"
+          message="This will permanently burn this thread and delete all messages. Continue?"
+          icon="⚠️"
+          confirmText="Burn"
+          onConfirm={() => { setShowBurnConfirm(false); onBurn(); }}
+          onCancel={() => setShowBurnConfirm(false)}
+        />
+      )}
     </WindowFrame>
   );
 };

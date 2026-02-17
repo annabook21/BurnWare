@@ -16,6 +16,13 @@ import {
   forgotPassword,
   confirmForgotPassword,
 } from '../../config/cognito-config';
+import {
+  SignInForm,
+  SignUpForm,
+  ConfirmForm,
+  ForgotPasswordForm,
+  ResetPasswordForm,
+} from './LoginForms';
 
 type AuthMode = 'signIn' | 'signUp' | 'confirm' | 'forgotPassword' | 'resetPassword';
 
@@ -61,112 +68,6 @@ const Subtitle = styled.div`
   margin-top: ${aimTheme.spacing.xs};
 `;
 
-const Form = styled.form`
-  width: 100%;
-  max-width: 300px;
-`;
-
-const Field = styled.div`
-  margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const Label = styled.label`
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.xs};
-  display: block;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: 1px solid ${aimTheme.colors.blue};
-  }
-`;
-
-const Button = styled.button`
-  width: 100%;
-  padding: 6px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  font-weight: ${aimTheme.fonts.weight.bold};
-  cursor: pointer;
-  margin-top: ${aimTheme.spacing.md};
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const ErrorMessage = styled.div`
-  color: ${aimTheme.colors.fireRed};
-  font-size: ${aimTheme.fonts.size.small};
-  margin-top: ${aimTheme.spacing.sm};
-  padding: ${aimTheme.spacing.sm};
-  background: #FFE0E0;
-  border: 1px solid ${aimTheme.colors.fireRed};
-`;
-
-const SuccessMessage = styled.div`
-  color: #006600;
-  font-size: ${aimTheme.fonts.size.small};
-  margin-top: ${aimTheme.spacing.sm};
-  padding: ${aimTheme.spacing.sm};
-  background: #E0FFE0;
-  border: 1px solid #006600;
-`;
-
-const LinkButton = styled.button`
-  background: none;
-  border: none;
-  color: ${aimTheme.colors.blue};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.small};
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-
-  &:hover {
-    color: ${aimTheme.colors.darkBlue};
-  }
-`;
-
-const LinksRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-top: ${aimTheme.spacing.lg};
-`;
-
-const Hint = styled.div`
-  font-size: ${aimTheme.fonts.size.tiny};
-  color: ${aimTheme.colors.darkGray};
-  margin-top: ${aimTheme.spacing.xs};
-`;
-
-const RuleList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: ${aimTheme.spacing.xs} 0 0 0;
-`;
-
-const RuleLine = styled.li<{ $passed: boolean }>`
-  font-size: ${aimTheme.fonts.size.tiny};
-  color: ${({ $passed }) => ($passed ? '#006600' : aimTheme.colors.darkGray)};
-  line-height: 1.6;
-`;
-
 const COGNITO_ERROR_MESSAGES: Record<string, string> = {
   NotAuthorizedException: 'Incorrect email or password.',
   UserNotConfirmedException: 'Please verify your email first.',
@@ -189,14 +90,6 @@ function getCognitoErrorMessage(err: unknown): string {
   }
   return 'An unexpected error occurred.';
 }
-
-const PASSWORD_RULES = [
-  { label: '12+ characters', test: (pw: string) => pw.length >= 12 },
-  { label: 'Uppercase letter', test: (pw: string) => /[A-Z]/.test(pw) },
-  { label: 'Lowercase letter', test: (pw: string) => /[a-z]/.test(pw) },
-  { label: 'Number', test: (pw: string) => /\d/.test(pw) },
-  { label: 'Symbol', test: (pw: string) => /[^A-Za-z0-9]/.test(pw) },
-];
 
 const WINDOW_TITLES: Record<AuthMode, string> = {
   signIn: 'Sign On to BurnWare',
@@ -245,7 +138,6 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Handle challenges that require additional steps
       const step = result.nextStep?.signInStep;
       if (step === 'CONFIRM_SIGN_UP') {
         setError('');
@@ -302,7 +194,6 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
 
     try {
       await confirmSignUp(email, code);
-      // Auto sign-in after confirmation
       if (password) {
         setSuccess('Email verified! Signing you in...');
         doSignIn(email, password);
@@ -367,247 +258,38 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const renderSignIn = () => (
-    <Form onSubmit={handleSignIn}>
-      <Field>
-        <Label>Email:</Label>
-        <Input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus
-        />
-      </Field>
+  const shared = { loading, error, success };
 
-      <Field>
-        <Label>Password:</Label>
-        <Input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </Field>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
-
-      <Button type="submit" disabled={loading || !email || !password}>
-        {loading ? 'Signing On...' : 'Sign On'}
-      </Button>
-
-      <LinksRow>
-        <LinkButton type="button" onClick={() => resetForm('signUp', true)}>
-          Get a Screen Name
-        </LinkButton>
-        <LinkButton type="button" onClick={() => resetForm('forgotPassword', true)}>
-          Forgot Password?
-        </LinkButton>
-      </LinksRow>
-    </Form>
-  );
-
-  const renderSignUp = () => (
-    <Form onSubmit={handleSignUp}>
-      <Field>
-        <Label>Screen Name:</Label>
-        <Input
-          type="text"
-          value={screenName}
-          onChange={(e) => setScreenName(e.target.value)}
-          placeholder="Optional"
-          autoFocus
-          maxLength={64}
-        />
-      </Field>
-
-      <Field>
-        <Label>Email:</Label>
-        <Input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </Field>
-
-      <Field>
-        <Label>Password:</Label>
-        <Input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {password ? (
-          <RuleList>
-            {PASSWORD_RULES.map((rule) => (
-              <RuleLine key={rule.label} $passed={rule.test(password)}>
-                {rule.test(password) ? '\u2713' : '\u2717'} {rule.label}
-              </RuleLine>
-            ))}
-          </RuleList>
-        ) : (
-          <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
-        )}
-      </Field>
-
-      <Field>
-        <Label>Confirm Password:</Label>
-        <Input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
-      </Field>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
-
-      <Button type="submit" disabled={loading || !email || !password || !confirmPassword}>
-        {loading ? 'Creating Account...' : 'Create Account'}
-      </Button>
-
-      <LinksRow>
-        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
-          Already have an account? Sign In
-        </LinkButton>
-      </LinksRow>
-    </Form>
-  );
-
-  const renderConfirm = () => (
-    <Form onSubmit={handleConfirm}>
-      <Field>
-        <Label>Verification Code:</Label>
-        <Input
-          type="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter 6-digit code"
-          required
-          autoFocus
-          maxLength={6}
-        />
-        <Hint>Check your email for the verification code</Hint>
-      </Field>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
-
-      <Button type="submit" disabled={loading || !code}>
-        {loading ? 'Verifying...' : 'Verify Email'}
-      </Button>
-
-      <LinksRow>
-        <LinkButton type="button" onClick={handleResendCode}>
-          Resend Code
-        </LinkButton>
-        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
-          Back to Sign In
-        </LinkButton>
-      </LinksRow>
-    </Form>
-  );
-
-  const renderForgotPassword = () => (
-    <Form onSubmit={handleForgotPassword}>
-      <Field>
-        <Label>Email:</Label>
-        <Input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus
-        />
-        <Hint>We'll send a password reset code to this email</Hint>
-      </Field>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
-
-      <Button type="submit" disabled={loading || !email}>
-        {loading ? 'Sending Code...' : 'Send Reset Code'}
-      </Button>
-
-      <LinksRow>
-        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
-          Back to Sign In
-        </LinkButton>
-      </LinksRow>
-    </Form>
-  );
-
-  const renderResetPassword = () => (
-    <Form onSubmit={handleResetPassword}>
-      <Field>
-        <Label>Reset Code:</Label>
-        <Input
-          type="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter code from email"
-          required
-          autoFocus
-          maxLength={6}
-        />
-      </Field>
-
-      <Field>
-        <Label>New Password:</Label>
-        <Input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {password ? (
-          <RuleList>
-            {PASSWORD_RULES.map((rule) => (
-              <RuleLine key={rule.label} $passed={rule.test(password)}>
-                {rule.test(password) ? '\u2713' : '\u2717'} {rule.label}
-              </RuleLine>
-            ))}
-          </RuleList>
-        ) : (
-          <Hint>12+ characters, uppercase, lowercase, number, and symbol</Hint>
-        )}
-      </Field>
-
-      <Field>
-        <Label>Confirm New Password:</Label>
-        <Input
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
-      </Field>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>{success}</SuccessMessage>}
-
-      <Button type="submit" disabled={loading || !code || !password || !confirmPassword}>
-        {loading ? 'Resetting...' : 'Reset Password'}
-      </Button>
-
-      <LinksRow>
-        <LinkButton type="button" onClick={() => resetForm('signIn', true)}>
-          Back to Sign In
-        </LinkButton>
-      </LinksRow>
-    </Form>
-  );
-
-  const renderers: Record<AuthMode, () => React.ReactNode> = {
-    signIn: renderSignIn,
-    signUp: renderSignUp,
-    confirm: renderConfirm,
-    forgotPassword: renderForgotPassword,
-    resetPassword: renderResetPassword,
+  const renderForm = () => {
+    switch (mode) {
+      case 'signIn':
+        return (
+          <SignInForm {...shared} email={email} setEmail={setEmail} password={password} setPassword={setPassword}
+            onSubmit={handleSignIn} onSignUp={() => resetForm('signUp', true)} onForgotPassword={() => resetForm('forgotPassword', true)} />
+        );
+      case 'signUp':
+        return (
+          <SignUpForm {...shared} email={email} setEmail={setEmail} screenName={screenName} setScreenName={setScreenName}
+            password={password} setPassword={setPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
+            onSubmit={handleSignUp} onSignIn={() => resetForm('signIn', true)} />
+        );
+      case 'confirm':
+        return (
+          <ConfirmForm {...shared} code={code} setCode={setCode}
+            onSubmit={handleConfirm} onResend={handleResendCode} onSignIn={() => resetForm('signIn', true)} />
+        );
+      case 'forgotPassword':
+        return (
+          <ForgotPasswordForm {...shared} email={email} setEmail={setEmail}
+            onSubmit={handleForgotPassword} onSignIn={() => resetForm('signIn', true)} />
+        );
+      case 'resetPassword':
+        return (
+          <ResetPasswordForm {...shared} code={code} setCode={setCode} password={password} setPassword={setPassword}
+            confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
+            onSubmit={handleResetPassword} onSignIn={() => resetForm('signIn', true)} />
+        );
+    }
   };
 
   return (
@@ -619,7 +301,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({ onLoginSuccess }) => {
           <Subtitle>Anonymous inbox. Share a link—anyone can message you, no account needed.</Subtitle>
         </LogoSection>
 
-        {renderers[mode]()}
+        {renderForm()}
       </Container>
     </WindowFrame>
   );

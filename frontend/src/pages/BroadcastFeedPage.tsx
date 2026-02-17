@@ -24,7 +24,7 @@ const Container = styled.div`
   max-width: 640px;
   margin: 0 auto;
   background: ${aimTheme.colors.gray};
-  border: 2px outset ${aimTheme.colors.gray};
+  border: none;
   padding: ${aimTheme.spacing.lg};
 `;
 
@@ -42,7 +42,8 @@ const PostList = styled.div`
 
 const Post = styled.div`
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   padding: ${aimTheme.spacing.md};
   white-space: pre-wrap;
   word-break: break-word;

@@ -8,6 +8,9 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98, PrimaryButton } from '../aim-ui/Button98';
+import { Field, FieldLabel, FullInput, FullTextArea, FullSelect, ButtonBar } from '../aim-ui/FormField';
+import { CharCounter } from '../aim-ui/CharCounter';
 import { aimTheme } from '../../theme/aim-theme';
 
 interface CreateLinkDialogProps {
@@ -22,99 +25,22 @@ interface CreateLinkDialogProps {
   onClose: () => void;
 }
 
-/** Scrollable body so Expires In + OPSEC + buttons aren't clipped. WindowFrame's content area uses overflow:hidden so without this the bottom of the form was cut off. min-height:0 lets the flex child shrink and show a scrollbar. */
+/** flex:1 + min-height:0 lets this fill the WindowContent flex parent and scroll when content overflows. height:100% doesn't resolve in a flex parent whose height comes from flex:1. */
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
-`;
-
-const Field = styled.div`
-  margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const Label = styled.label`
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.sm};
-  display: block;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  height: 80px;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  resize: vertical;
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-`;
-
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  justify-content: flex-end;
-  margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const CreateButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-  text-shadow: ${aimTheme.shadows.text};
+  padding-bottom: ${aimTheme.spacing.xl};
 `;
 
 const Fieldset = styled.fieldset`
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   padding: ${aimTheme.spacing.sm} ${aimTheme.spacing.md};
   margin-bottom: ${aimTheme.spacing.lg};
 `;
@@ -124,11 +50,8 @@ const Legend = styled.legend`
   padding: 0 ${aimTheme.spacing.sm};
 `;
 
-const Checkbox = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${aimTheme.spacing.sm};
-  cursor: pointer;
+/** Wrapper for checkbox so 98.css can show the box (it expects input + label as siblings in a field-row) */
+const FieldRow = styled.div`
   margin-bottom: ${aimTheme.spacing.sm};
 `;
 
@@ -136,14 +59,6 @@ const RadioGroup = styled.div`
   display: flex;
   gap: ${aimTheme.spacing.lg};
   margin: ${aimTheme.spacing.sm} 0;
-`;
-
-const RadioLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-size: ${aimTheme.fonts.size.small};
 `;
 
 export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onClose }) => {
@@ -180,17 +95,17 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
   return (
     <WindowFrame
       title="✨ Create New Link"
-      width={440}
-      height={520}
-      initialX={150}
-      initialY={100}
+      width={500}
+      height={700}
+      initialX={100}
+      initialY={40}
       zIndex={1001}
       onClose={onClose}
     >
       <DialogContainer>
         <Field>
-          <Label>Display Name *</Label>
-          <Input
+          <FieldLabel>Display Name *</FieldLabel>
+          <FullInput
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value.slice(0, 100))}
@@ -198,76 +113,98 @@ export const CreateLinkDialog: React.FC<CreateLinkDialogProps> = ({ onSave, onCl
             maxLength={100}
             autoFocus
           />
+          <CharCounter current={displayName.length} max={100} />
           <div style={{ fontSize: aimTheme.fonts.size.tiny, color: aimTheme.colors.darkGray, marginTop: 2 }}>
             Senders will see this when they open the link.
           </div>
         </Field>
 
         <Field>
-          <Label>Description (Optional)</Label>
-          <TextArea
+          <FieldLabel>Description (Optional)</FieldLabel>
+          <FullTextArea
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             placeholder="Let people know what this link is for..."
             maxLength={500}
           />
+          <CharCounter current={description.length} max={500} />
         </Field>
 
         <Field>
-          <Label>Expires In</Label>
-          <Select value={expiresIn} onChange={(e) => setExpiresIn(Number(e.target.value) || undefined)}>
+          <FieldLabel>Expires In</FieldLabel>
+          <FullSelect value={expiresIn} onChange={(e) => setExpiresIn(Number(e.target.value) || undefined)}>
             <option value="">Never</option>
             <option value="7">7 days</option>
             <option value="30">30 days</option>
             <option value="90">90 days</option>
             <option value="365">1 year</option>
-          </Select>
+          </FullSelect>
         </Field>
 
         <Fieldset>
           <Legend>OPSEC Mode</Legend>
-          <Checkbox>
-            <input type="checkbox" checked={opsecMode} onChange={(e) => setOpsecMode(e.target.checked)} />
-            Enable OPSEC Mode (24h expiry, access control)
-          </Checkbox>
+          <FieldRow className="field-row">
+            <input
+              id="create-link-opsec"
+              type="checkbox"
+              checked={opsecMode}
+              onChange={(e) => setOpsecMode(e.target.checked)}
+            />
+            <label htmlFor="create-link-opsec">
+              Enable OPSEC Mode (24h expiry, access control)
+            </label>
+          </FieldRow>
           {opsecMode && (
             <>
               <RadioGroup>
-                <RadioLabel>
-                  <input type="radio" name="opsec_access" value="device_bound"
-                    checked={opsecAccess === 'device_bound'} onChange={() => setOpsecAccess('device_bound')} />
-                  Device-bound
-                </RadioLabel>
-                <RadioLabel>
-                  <input type="radio" name="opsec_access" value="single_use"
-                    checked={opsecAccess === 'single_use'} onChange={() => setOpsecAccess('single_use')} />
-                  Single-use (session)
-                </RadioLabel>
+                <FieldRow className="field-row">
+                  <input
+                    id="opsec-device-bound"
+                    type="radio"
+                    name="opsec_access"
+                    value="device_bound"
+                    checked={opsecAccess === 'device_bound'}
+                    onChange={() => setOpsecAccess('device_bound')}
+                  />
+                  <label htmlFor="opsec-device-bound">Device-bound</label>
+                </FieldRow>
+                <FieldRow className="field-row">
+                  <input
+                    id="opsec-single-use"
+                    type="radio"
+                    name="opsec_access"
+                    value="single_use"
+                    checked={opsecAccess === 'single_use'}
+                    onChange={() => setOpsecAccess('single_use')}
+                  />
+                  <label htmlFor="opsec-single-use">Single-use (session)</label>
+                </FieldRow>
               </RadioGroup>
               <Field>
-                <Label>Passphrase (optional)</Label>
+                <FieldLabel>Passphrase (optional)</FieldLabel>
                 <div style={{ display: 'flex', gap: aimTheme.spacing.sm }}>
-                  <Input
+                  <FullInput
                     type={showPassphrase ? 'text' : 'password'}
                     value={opsecPassphrase}
                     onChange={(e) => setOpsecPassphrase(e.target.value.slice(0, 128))}
                     placeholder="Leave blank for no passphrase"
                     maxLength={128}
                   />
-                  <Button type="button" onClick={() => setShowPassphrase(!showPassphrase)} style={{ minWidth: 50 }}>
+                  <Button98 type="button" onClick={() => setShowPassphrase(!showPassphrase)} style={{ minWidth: 50 }}>
                     {showPassphrase ? 'Hide' : 'Show'}
-                  </Button>
+                  </Button98>
                 </div>
+                <CharCounter current={opsecPassphrase.length} max={128} />
               </Field>
             </>
           )}
         </Fieldset>
 
         <ButtonBar>
-          <CreateButton onClick={handleCreate} disabled={!displayName.trim()}>
+          <PrimaryButton onClick={handleCreate} disabled={!displayName.trim()}>
             🔥 Create
-          </CreateButton>
-          <Button onClick={onClose}>Cancel</Button>
+          </PrimaryButton>
+          <Button98 onClick={onClose}>Cancel</Button98>
         </ButtonBar>
       </DialogContainer>
     </WindowFrame>

@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { Button98, BurnButton } from '../aim-ui/Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import { awsConfig } from '../../config/aws-config';
 
@@ -25,22 +26,27 @@ interface QRCodeDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
+  min-width: 0;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
   align-items: center;
+  overflow-x: hidden;
 `;
 
 const QRContainer = styled.div`
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.lg};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.md} 0;
 `;
 
 const LinkInfo = styled.div`
   text-align: center;
   margin-bottom: ${aimTheme.spacing.md};
+  max-width: 100%;
+  min-width: 0;
 `;
 
 const LinkName = styled.div`
@@ -55,38 +61,19 @@ const LinkUrl = styled.div`
   word-break: break-all;
   padding: ${aimTheme.spacing.sm};
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.sm} 0;
+  max-width: 100%;
+  min-width: 0;
 `;
 
 const ButtonBar = styled.div`
   display: flex;
+  flex-wrap: wrap;
   gap: ${aimTheme.spacing.sm};
   margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-`;
-
-const DeleteButton = styled(Button)`
-  background: #FF6B6B;
-  color: white;
-  font-weight: bold;
-
-  &:hover {
-    background: #FF4444;
-  }
+  justify-content: center;
 `;
 
 export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
@@ -146,10 +133,10 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
   return (
     <WindowFrame
       title={`QR Code - ${linkName}`}
-      width={380}
-      height={480}
-      initialX={200}
-      initialY={100}
+      width={420}
+      height={580}
+      initialX={180}
+      initialY={80}
       zIndex={1002}
       onClose={onClose}
     >
@@ -167,19 +154,19 @@ export const QRCodeDialog: React.FC<QRCodeDialogProps> = ({
         </QRContainer>
 
         <ButtonBar>
-          <Button onClick={handleOpenSendPage}>✉️ Open send page</Button>
-          <Button onClick={handleCopyLink}>📋 Copy Link</Button>
-          <Button onClick={handleDownloadQR}>💾 Download QR</Button>
+          <Button98 onClick={handleOpenSendPage}>✉️ Open send page</Button98>
+          <Button98 onClick={handleCopyLink}>📋 Copy Link</Button98>
+          <Button98 onClick={handleDownloadQR}>💾 Download QR</Button98>
           {onDelete && !confirmingDelete && (
-            <DeleteButton onClick={() => setConfirmingDelete(true)}>🗑️ Delete</DeleteButton>
+            <BurnButton onClick={() => setConfirmingDelete(true)}>🗑️ Delete</BurnButton>
           )}
           {onDelete && confirmingDelete && (
             <>
-              <DeleteButton onClick={() => onDelete(linkId)}>Confirm</DeleteButton>
-              <Button onClick={() => setConfirmingDelete(false)}>Cancel</Button>
+              <BurnButton onClick={() => onDelete(linkId)}>Confirm</BurnButton>
+              <Button98 onClick={() => setConfirmingDelete(false)}>Cancel</Button98>
             </>
           )}
-          {!confirmingDelete && <Button onClick={onClose}>Close</Button>}
+          {!confirmingDelete && <Button98 onClick={onClose}>Close</Button98>}
         </ButtonBar>
       </DialogContainer>
     </WindowFrame>

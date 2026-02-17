@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
+import { Button98 } from '../aim-ui/Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -27,9 +28,8 @@ const MessageArea = styled.div<{ compact?: boolean }>`
   overflow-y: auto;
   padding: ${aimTheme.spacing.md};
   background: ${aimTheme.colors.white};
-  border: 2px inset ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
+  box-shadow: var(--border-field);
+  border: none;
   min-height: ${(p) => (p.compact ? '120px' : '200px')};
   max-height: ${(p) => (p.compact ? '260px' : '400px')};
 `;
@@ -72,22 +72,10 @@ const PassphraseForm = styled.div`
 `;
 
 const PassphraseInput = styled.input`
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
   width: 200px;
   margin-right: ${aimTheme.spacing.sm};
-`;
-
-const UnlockButton = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  cursor: pointer;
-  &:active { border-style: inset; }
-  &:disabled { color: ${aimTheme.colors.darkGray}; cursor: not-allowed; }
 `;
 
 function formatTime(iso: string | Date): string {
@@ -264,9 +252,9 @@ export const ThreadView: React.FC<ThreadViewProps> = ({ threadId, compact = fals
               onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
               placeholder="Enter passphrase"
             />
-            <UnlockButton onClick={handleUnlock} disabled={unlocking || !passphrase.trim()}>
+            <Button98 onClick={handleUnlock} disabled={unlocking || !passphrase.trim()}>
               {unlocking ? 'Unlocking...' : 'Unlock'}
-            </UnlockButton>
+            </Button98>
           </div>
           {unlockError && <p style={{ color: aimTheme.colors.fireRed, marginTop: 8 }}>{unlockError}</p>}
         </PassphraseForm>

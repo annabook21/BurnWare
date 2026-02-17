@@ -8,6 +8,8 @@ import styled from 'styled-components';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { WindowFrame } from './WindowFrame';
+import { CharCounter } from './CharCounter';
+import { Button98 } from './Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -50,13 +52,15 @@ const UrlBlock = styled.div`
   word-break: break-all;
   padding: ${aimTheme.spacing.sm};
   background: ${aimTheme.colors.white};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
 `;
 
 const QRWrap = styled.div`
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   display: inline-block;
 `;
 
@@ -67,33 +71,18 @@ const ButtonRow = styled.div`
   margin-top: 4px;
 `;
 
-const Button = styled.button`
-  padding: 4px 10px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.small};
-  cursor: pointer;
-`;
-
 const Input = styled.input`
   width: 100%;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
   margin-bottom: ${aimTheme.spacing.sm};
 `;
 
 const TextArea = styled.textarea`
   width: 100%;
   min-height: 60px;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
   resize: vertical;
 `;
 
@@ -206,8 +195,8 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
   return (
     <WindowFrame
       title={`📡 ${channelName}`}
-      width={380}
-      height={420}
+      width={420}
+      height={560}
       initialX={initialX}
       initialY={initialY}
       zIndex={zIndex}
@@ -218,8 +207,8 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
           <Label>Read URL (share so others can view the feed)</Label>
           <UrlBlock>{fullReadUrl}</UrlBlock>
           <ButtonRow>
-            <Button onClick={handleCopyLink}>Copy link</Button>
-            <Button onClick={openFeed}>View public feed</Button>
+            <Button98 onClick={handleCopyLink}>Copy link</Button98>
+            <Button98 onClick={openFeed}>View public feed</Button98>
           </ButtonRow>
         </Section>
 
@@ -261,9 +250,10 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
                 onChange={(e) => setContent(e.target.value)}
                 maxLength={10000}
               />
-              <Button type="submit" disabled={posting || !content.trim() || !tokenToUse.trim()}>
+              <CharCounter current={content.length} max={10000} />
+              <Button98 type="submit" disabled={posting || !content.trim() || !tokenToUse.trim()}>
                 {posting ? 'Posting…' : 'Add post'}
-              </Button>
+              </Button98>
             </form>
           )}
         </Section>

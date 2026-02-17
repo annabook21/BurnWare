@@ -23,8 +23,8 @@ interface WindowFrameProps {
   onFocus?: () => void;
 }
 
-const MIN_W = 280;
-const MIN_H = 200;
+const MIN_W = 300;
+const MIN_H = 280;
 const TASKBAR_H = 28;
 
 const WindowContainer = styled.div<{ $w: number; $h: number; $z: number }>`
@@ -33,18 +33,22 @@ const WindowContainer = styled.div<{ $w: number; $h: number; $z: number }>`
   left: 0;
   width: ${(p) => p.$w}px;
   height: ${(p) => p.$h}px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  box-shadow: ${aimTheme.shadows.window};
+  background: var(--surface);
+  box-shadow:
+    inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
+    inset -2px -2px grey, inset 2px 2px #fff,
+    2px 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 3px;
   display: flex;
   flex-direction: column;
   z-index: ${(p) => p.$z};
-  font-family: ${aimTheme.fonts.primary};
 `;
 
 const WindowContent = styled.div`
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -97,13 +101,25 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
   zIndex = aimTheme.zIndex.window,
   onFocus,
 }) => {
-  const [position, setPosition] = useState({ x: initialX, y: initialY });
-  const [size, setSize] = useState({ w: width, h: height });
+  // Clamp size and position so the window fits within the viewport
+  const clamp = (x: number, y: number, w: number, h: number) => {
+    const maxH = Math.max(MIN_H, window.innerHeight - TASKBAR_H);
+    const clampedH = Math.min(h, maxH);
+    const clampedW = Math.min(w, window.innerWidth);
+    const clampedY = Math.min(y, Math.max(0, maxH - clampedH));
+    const clampedX = Math.min(x, Math.max(0, window.innerWidth - clampedW));
+    return { x: clampedX, y: clampedY, w: clampedW, h: clampedH };
+  };
+
+  const initial = clamp(initialX, initialY, width, height);
+  const [position, setPosition] = useState({ x: initial.x, y: initial.y });
+  const [size, setSize] = useState({ w: initial.w, h: initial.h });
   const resizeRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
 
   useEffect(() => {
-    setPosition({ x: initialX, y: initialY });
-  }, [initialX, initialY]);
+    const c = clamp(initialX, initialY, size.w, size.h);
+    setPosition({ x: c.x, y: c.y });
+  }, [initialX, initialY]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bounds = {
     left: 0,

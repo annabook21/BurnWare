@@ -34,48 +34,22 @@ export const GlobalStyles = createGlobalStyle`
     height: 100%;
   }
 
-  /* AIM-style window */
-  .aim-window {
-    border: ${aimTheme.borders.outset};
-    background: ${aimTheme.colors.gray};
-    box-shadow: ${aimTheme.shadows.window};
+  /* 98.css sets buttons to color:transparent + text-shadow. Override globally
+   * so all button text is visible. */
+  button {
+    color: inherit;
+    text-shadow: none;
   }
 
-  /* Title bar */
-  .aim-title-bar {
-    background: linear-gradient(
-      to right,
-      ${aimTheme.colors.blueGradientStart},
-      ${aimTheme.colors.blueGradientEnd}
-    );
-    color: ${aimTheme.colors.white};
-    font-weight: ${aimTheme.fonts.weight.bold};
-    padding: 3px 5px;
-    cursor: move;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    user-select: none;
+  /* 98.css forces select height:21px — override globally */
+  select {
+    height: auto;
   }
 
-  /* Classic button styling */
-  .btn-98 {
-    padding: 4px 12px;
-    border: ${aimTheme.borders.outset};
-    background: ${aimTheme.colors.gray};
-    font-family: ${aimTheme.fonts.primary};
-    font-size: ${aimTheme.fonts.size.normal};
-    cursor: pointer;
-    min-width: 75px;
-
-    &:active {
-      border-style: inset;
-    }
-
-    &:focus {
-      outline: 1px dotted ${aimTheme.colors.black};
-      outline-offset: -4px;
-    }
+  /* Title-bar control buttons get 98.css SVG icons via aria-label */
+  .title-bar-controls button {
+    color: ${aimTheme.colors.black};
+    text-shadow: none;
   }
 
   /* Burn button (fire-themed) */

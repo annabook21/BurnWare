@@ -1,12 +1,12 @@
 /**
  * Confirm Dialog Component
  * Classic Windows-style confirmation dialog
- * File size: ~130 lines
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { WindowFrame } from './WindowFrame';
+import { Button98 } from './Button98';
 import { aimTheme } from '../../theme/aim-theme';
 
 interface ConfirmDialogProps {
@@ -22,7 +22,8 @@ interface ConfirmDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -41,39 +42,15 @@ const Icon = styled.div`
 `;
 
 const MessageText = styled.div`
-  font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.normal};
   line-height: 1.4;
 `;
 
-const ButtonBar = styled.div`
+const ButtonBarCenter = styled.div`
   display: flex;
   gap: ${aimTheme.spacing.sm};
   justify-content: center;
   padding: ${aimTheme.spacing.md};
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:focus {
-    outline: 1px dotted ${aimTheme.colors.black};
-    outline-offset: -4px;
-  }
-`;
-
-const ConfirmButton = styled(Button)`
-  font-weight: ${aimTheme.fonts.weight.bold};
 `;
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -85,17 +62,32 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmText = 'OK',
   cancelText = 'Cancel',
 }) => {
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    confirmRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onConfirm, onCancel]);
+
   return (
     <WindowFrame title={title} width={360} height={180} initialX={250} initialY={200} zIndex={2000}>
-      <DialogContainer>
+      <DialogContainer role="alertdialog" aria-modal="true" aria-describedby="confirm-msg">
         <MessageArea>
           <Icon>{icon}</Icon>
-          <MessageText>{message}</MessageText>
+          <MessageText id="confirm-msg">{message}</MessageText>
         </MessageArea>
-        <ButtonBar>
-          <ConfirmButton onClick={onConfirm}>{confirmText}</ConfirmButton>
-          <Button onClick={onCancel}>{cancelText}</Button>
-        </ButtonBar>
+        <ButtonBarCenter>
+          <Button98 ref={confirmRef} onClick={onConfirm} style={{ fontWeight: 'bold' }}>{confirmText}</Button98>
+          <Button98 onClick={onCancel}>{cancelText}</Button98>
+        </ButtonBarCenter>
       </DialogContainer>
     </WindowFrame>
   );

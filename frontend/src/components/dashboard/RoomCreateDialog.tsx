@@ -7,6 +7,9 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { CharCounter } from '../aim-ui/CharCounter';
+import { Button98, PrimaryButton } from '../aim-ui/Button98';
+import { Field, FieldLabel, HelpText, FullInput, FullTextArea, FullSelect, ButtonBar } from '../aim-ui/FormField';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -24,116 +27,19 @@ interface RoomCreateDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
 
-const Field = styled.div`
-  margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const Label = styled.label`
-  font-weight: ${aimTheme.fonts.weight.bold};
-  margin-bottom: ${aimTheme.spacing.sm};
-  display: block;
-`;
-
-const HelpText = styled.div`
-  font-size: ${aimTheme.fonts.size.small};
-  color: ${aimTheme.colors.darkGray};
-  margin-top: 2px;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  height: 60px;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  resize: vertical;
-  background: ${aimTheme.colors.white};
-
-  &:focus {
-    outline: none;
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  border: ${aimTheme.borders.inset};
-  padding: ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-`;
-
-const ButtonBar = styled.div`
-  display: flex;
-  gap: ${aimTheme.spacing.sm};
-  justify-content: flex-end;
-  margin-top: auto;
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-  min-width: 75px;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
-`;
-
-const CreateButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
-  text-shadow: ${aimTheme.shadows.text};
-`;
-
 const InfoBox = styled.div`
   background: ${aimTheme.colors.lightYellow || '#fffde7'};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
   padding: ${aimTheme.spacing.sm};
   font-size: ${aimTheme.fonts.size.small};
   margin-bottom: ${aimTheme.spacing.lg};
-`;
-
-const CheckboxRow = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${aimTheme.spacing.sm};
-  cursor: pointer;
-`;
-
-const Checkbox = styled.input`
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
 `;
 
 export const RoomCreateDialog: React.FC<RoomCreateDialogProps> = ({ onSave, onClose }) => {
@@ -219,10 +125,10 @@ export const RoomCreateDialog: React.FC<RoomCreateDialogProps> = ({ onSave, onCl
   return (
     <WindowFrame
       title="🔒 Create Secure Room"
-      width={400}
-      height={480}
-      initialX={180}
-      initialY={120}
+      width={440}
+      height={540}
+      initialX={140}
+      initialY={60}
       zIndex={1001}
       onClose={onClose}
     >
@@ -232,8 +138,8 @@ export const RoomCreateDialog: React.FC<RoomCreateDialogProps> = ({ onSave, onCl
         </InfoBox>
 
         <Field>
-          <Label>Room Name *</Label>
-          <Input
+          <FieldLabel>Room Name *</FieldLabel>
+          <FullInput
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value.slice(0, 100))}
@@ -241,47 +147,50 @@ export const RoomCreateDialog: React.FC<RoomCreateDialogProps> = ({ onSave, onCl
             maxLength={100}
             autoFocus
           />
+          <CharCounter current={displayName.length} max={100} />
         </Field>
 
         <Field>
-          <Label>Description (Optional)</Label>
-          <TextArea
+          <FieldLabel>Description (Optional)</FieldLabel>
+          <FullTextArea
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 500))}
             placeholder="What's this room for?"
             maxLength={500}
           />
+          <CharCounter current={description.length} max={500} />
         </Field>
 
         <Field>
-          <Label>Join Window</Label>
-          <Select value={joinWindow} onChange={(e) => setJoinWindow(Number(e.target.value))}>
+          <FieldLabel>Join Window</FieldLabel>
+          <FullSelect value={joinWindow} onChange={(e) => setJoinWindow(Number(e.target.value))}>
             <option value="5">5 minutes</option>
             <option value="15">15 minutes</option>
             <option value="30">30 minutes</option>
             <option value="60">1 hour</option>
-          </Select>
+          </FullSelect>
           <HelpText>Room locks to new participants after this time</HelpText>
         </Field>
 
         <Field>
-          <Label>Max Participants</Label>
-          <Select value={maxParticipants} onChange={(e) => setMaxParticipants(Number(e.target.value))}>
+          <FieldLabel>Max Participants</FieldLabel>
+          <FullSelect value={maxParticipants} onChange={(e) => setMaxParticipants(Number(e.target.value))}>
             <option value="2">2</option>
             <option value="5">5</option>
             <option value="10">10</option>
-          </Select>
+          </FullSelect>
         </Field>
 
         <Field>
-          <CheckboxRow>
-            <Checkbox
+          <div className="field-row">
+            <input
+              id="auto-approve"
               type="checkbox"
               checked={autoApprove}
               onChange={(e) => setAutoApprove(e.target.checked)}
             />
-            <span>Auto-approve participants</span>
-          </CheckboxRow>
+            <label htmlFor="auto-approve">Auto-approve participants</label>
+          </div>
           <HelpText>
             {autoApprove
               ? 'Participants join instantly when you have the dashboard open'
@@ -290,12 +199,12 @@ export const RoomCreateDialog: React.FC<RoomCreateDialogProps> = ({ onSave, onCl
         </Field>
 
         <ButtonBar>
-          <CreateButton onClick={handleCreate} disabled={!displayName.trim() || creating}>
+          <PrimaryButton onClick={handleCreate} disabled={!displayName.trim() || creating}>
             {creating ? 'Creating...' : '🔒 Create Room'}
-          </CreateButton>
-          <Button onClick={onClose} disabled={creating}>
+          </PrimaryButton>
+          <Button98 onClick={onClose} disabled={creating}>
             Cancel
-          </Button>
+          </Button98>
         </ButtonBar>
       </DialogContainer>
     </WindowFrame>

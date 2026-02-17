@@ -7,6 +7,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'sonner';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { PrimaryButton, Button98 } from '../aim-ui/Button98';
+import { ConfirmDialog } from '../aim-ui/ConfirmDialog';
 import { RoomCreateDialog } from './RoomCreateDialog';
 import { RoomInvitesDialog } from './RoomInvitesDialog';
 import { RoomApprovalDialog } from './RoomApprovalDialog';
@@ -41,20 +43,11 @@ const Title = styled.span`
   font-size: ${aimTheme.fonts.size.small};
 `;
 
-const CreateButton = styled.button`
+const SmallPrimaryButton = styled(PrimaryButton)`
   padding: 2px 8px;
-  border: ${aimTheme.borders.outset};
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-family: ${aimTheme.fonts.primary};
   font-size: ${aimTheme.fonts.size.small};
-  font-weight: bold;
-  cursor: pointer;
-  text-shadow: ${aimTheme.shadows.text};
-
-  &:active {
-    border-style: inset;
-  }
+  min-width: auto;
+  min-height: auto;
 `;
 
 const RoomList = styled.div`
@@ -67,7 +60,8 @@ const RoomItem = styled.div<{ $hasActivity?: boolean }>`
   display: flex;
   align-items: center;
   padding: ${aimTheme.spacing.sm};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   background: ${aimTheme.colors.white};
   margin-bottom: ${aimTheme.spacing.sm};
   cursor: pointer;
@@ -109,16 +103,11 @@ const RoomActions = styled.div`
   gap: 4px;
 `;
 
-const ActionButton = styled.button`
+const SmallButton = styled(Button98)`
   padding: 2px 6px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
   font-size: ${aimTheme.fonts.size.small};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
+  min-width: auto;
+  min-height: auto;
 `;
 
 const EmptyState = styled.div`
@@ -136,6 +125,7 @@ export const RoomsPanel: React.FC<RoomsPanelProps> = ({ onOpenRoom, zIndex }) =>
   const [showInvitesDialog, setShowInvitesDialog] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [autoGenerateInvite, setAutoGenerateInvite] = useState(false);
+  const [burnRoom, setBurnRoom] = useState<Room | null>(null);
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -169,10 +159,14 @@ export const RoomsPanel: React.FC<RoomsPanelProps> = ({ onOpenRoom, zIndex }) =>
     }
   };
 
-  const handleBurnRoom = async (room: Room) => {
-    if (!window.confirm(`Permanently delete room "${room.display_name}"? This cannot be undone.`)) {
-      return;
-    }
+  const handleBurnRoom = (room: Room) => {
+    setBurnRoom(room);
+  };
+
+  const confirmBurnRoom = async () => {
+    if (!burnRoom) return;
+    const room = burnRoom;
+    setBurnRoom(null);
 
     try {
       const token = await getAccessToken();
@@ -208,16 +202,16 @@ export const RoomsPanel: React.FC<RoomsPanelProps> = ({ onOpenRoom, zIndex }) =>
     <>
       <WindowFrame
         title="🔒 Secure Rooms"
-        width={320}
-        height={400}
-        initialX={50}
-        initialY={80}
+        width={360}
+        height={460}
+        initialX={40}
+        initialY={60}
         zIndex={zIndex || 100}
       >
         <Content>
           <Header>
             <Title>My Chat Rooms</Title>
-            <CreateButton onClick={() => setShowCreateDialog(true)}>+ New Room</CreateButton>
+            <SmallPrimaryButton onClick={() => setShowCreateDialog(true)}>+ New Room</SmallPrimaryButton>
           </Header>
 
           <RoomList>
@@ -240,27 +234,33 @@ export const RoomsPanel: React.FC<RoomsPanelProps> = ({ onOpenRoom, zIndex }) =>
                     </RoomMeta>
                   </RoomInfo>
                   <RoomActions onClick={(e) => e.stopPropagation()}>
-                    <ActionButton
+                    <SmallButton
                       onClick={() => {
                         setSelectedRoom(room);
                         setShowInvitesDialog(true);
                       }}
+                      aria-label="Invite"
                       title="Invite"
                     >
-                      📨
-                    </ActionButton>
-                    <ActionButton
+                      📨 Invite
+                    </SmallButton>
+                    <SmallButton
                       onClick={() => {
                         setSelectedRoom(room);
                         setShowApprovalDialog(true);
                       }}
+                      aria-label="Pending participants"
                       title="Pending"
                     >
-                      👥
-                    </ActionButton>
-                    <ActionButton onClick={() => handleBurnRoom(room)} title="Burn">
-                      🔥
-                    </ActionButton>
+                      👥 Pending
+                    </SmallButton>
+                    <SmallButton
+                      onClick={() => handleBurnRoom(room)}
+                      aria-label="Burn room"
+                      title="Burn"
+                    >
+                      🔥 Burn
+                    </SmallButton>
                   </RoomActions>
                 </RoomItem>
               ))
@@ -296,6 +296,17 @@ export const RoomsPanel: React.FC<RoomsPanelProps> = ({ onOpenRoom, zIndex }) =>
             setSelectedRoom(null);
             fetchRooms();
           }}
+        />
+      )}
+
+      {burnRoom && (
+        <ConfirmDialog
+          title="Burn Room"
+          message={`Permanently delete room "${burnRoom.display_name}"? This cannot be undone.`}
+          icon="⚠️"
+          confirmText="Burn"
+          onConfirm={confirmBurnRoom}
+          onCancel={() => setBurnRoom(null)}
         />
       )}
     </>

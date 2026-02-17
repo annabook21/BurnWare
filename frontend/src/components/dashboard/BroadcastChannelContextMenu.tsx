@@ -3,7 +3,7 @@
  * Right-click menu for channel items: Open, Copy link, Show QR, Burn
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { aimTheme } from '../../theme/aim-theme';
 import type { BroadcastChannel } from '../../types';
@@ -73,15 +73,35 @@ export const BroadcastChannelContextMenu: React.FC<BroadcastChannelContextMenuPr
   onDelete,
   onClose,
 }) => {
+  const menuRef = useRef<HTMLDivElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ x, y });
 
   useEffect(() => {
     firstItemRef.current?.focus();
   }, []);
 
+  // Viewport bounds
+  useEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const clampedX = Math.min(x, window.innerWidth - rect.width - 4);
+    const clampedY = Math.min(y, window.innerHeight - rect.height - 4);
+    setPos({ x: Math.max(0, clampedX), y: Math.max(0, clampedY) });
+  }, [x, y]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+      e.preventDefault();
+      const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]');
+      if (!items || items.length === 0) return;
+      const idx = Array.from(items).indexOf(document.activeElement as HTMLButtonElement);
+      if (e.key === 'ArrowDown') items[(idx + 1) % items.length].focus();
+      else items[(idx - 1 + items.length) % items.length].focus();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -96,8 +116,9 @@ export const BroadcastChannelContextMenu: React.FC<BroadcastChannelContextMenuPr
         aria-hidden="true"
       />
       <Menu
-        $x={x}
-        $y={y}
+        ref={menuRef}
+        $x={pos.x}
+        $y={pos.y}
         role="menu"
         aria-label="Channel actions"
         tabIndex={-1}

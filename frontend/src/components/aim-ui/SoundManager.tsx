@@ -1,7 +1,7 @@
 /**
  * Sound Manager Component
  * Controls for AIM sound effects
- * File size: ~90 lines
+ * File size: ~35 lines
  */
 
 import React from 'react';
@@ -23,30 +23,13 @@ const Container = styled.div`
   font-size: ${aimTheme.fonts.size.small};
 `;
 
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${aimTheme.spacing.sm};
-  cursor: pointer;
-  user-select: none;
-`;
-
-const Checkbox = styled.input`
-  cursor: pointer;
-`;
-
-const SoundIcon = styled.span`
-  font-size: 14px;
-`;
-
 export const SoundManager: React.FC<SoundManagerProps> = ({ muted, onToggleMute }) => {
   return (
     <Container>
-      <CheckboxLabel>
-        <Checkbox type="checkbox" checked={!muted} onChange={onToggleMute} />
-        <SoundIcon>{muted ? '🔇' : '🔊'}</SoundIcon>
-        <span>Sound Effects</span>
-      </CheckboxLabel>
+      <div className="field-row">
+        <input id="sound-toggle" type="checkbox" checked={!muted} onChange={onToggleMute} />
+        <label htmlFor="sound-toggle">{muted ? '🔇' : '🔊'} Sound Effects</label>
+      </div>
     </Container>
   );
 };

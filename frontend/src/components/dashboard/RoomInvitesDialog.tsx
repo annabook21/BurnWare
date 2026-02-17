@@ -8,6 +8,8 @@ import styled from 'styled-components';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import { WindowFrame } from '../aim-ui/WindowFrame';
+import { ConfirmDialog } from '../aim-ui/ConfirmDialog';
+import { Button98, PrimaryButton } from '../aim-ui/Button98';
 import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
@@ -23,7 +25,9 @@ interface RoomInvitesDialogProps {
 const DialogContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background: ${aimTheme.colors.gray};
   padding: ${aimTheme.spacing.md};
 `;
@@ -57,35 +61,15 @@ const Label = styled.label`
 
 const Input = styled.input`
   width: 100%;
-  border: ${aimTheme.borders.inset};
+  border: none;
   padding: 4px ${aimTheme.spacing.sm};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  background: ${aimTheme.colors.white};
-`;
-
-const Button = styled.button`
-  padding: 4px 12px;
-  border: ${aimTheme.borders.outset};
-  background: ${aimTheme.colors.gray};
-  font-family: ${aimTheme.fonts.primary};
-  font-size: ${aimTheme.fonts.size.normal};
-  cursor: pointer;
-
-  &:active {
-    border-style: inset;
-  }
-
-  &:disabled {
-    color: ${aimTheme.colors.darkGray};
-    cursor: not-allowed;
-  }
 `;
 
 const InviteList = styled.div`
   flex: 1;
   overflow-y: auto;
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.sm};
 `;
@@ -114,7 +98,7 @@ const InviteStatus = styled.span<{ $redeemed?: boolean }>`
 
 const NewInviteBox = styled.div`
   background: ${aimTheme.colors.flameYellow};
-  border: ${aimTheme.borders.outset};
+  border: none;
   padding: ${aimTheme.spacing.md};
   margin-bottom: ${aimTheme.spacing.md};
 `;
@@ -125,14 +109,9 @@ const InviteUrl = styled.div`
   word-break: break-all;
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.sm};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.sm} 0;
-`;
-
-const CopyButton = styled(Button)`
-  background: linear-gradient(to bottom, ${aimTheme.colors.flameYellow}, ${aimTheme.colors.brandOrange});
-  color: ${aimTheme.colors.white};
-  font-weight: bold;
 `;
 
 const Warning = styled.div`
@@ -152,7 +131,8 @@ const QRContainer = styled.div`
   justify-content: center;
   background: ${aimTheme.colors.white};
   padding: ${aimTheme.spacing.md};
-  border: ${aimTheme.borders.inset};
+  box-shadow: var(--border-field);
+  border: none;
   margin: ${aimTheme.spacing.sm} 0;
 `;
 
@@ -168,6 +148,7 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
   const [count] = useState(1);
   const [label, setLabel] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
   const autoGenerateTriggered = useRef(false);
 
   const fetchInvites = useCallback(async () => {
@@ -225,8 +206,14 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
     }
   };
 
-  const handleRevoke = async (inviteId: string) => {
-    if (!window.confirm('Revoke this invite? It will no longer be usable.')) return;
+  const handleRevoke = (inviteId: string) => {
+    setRevokeInviteId(inviteId);
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokeInviteId) return;
+    const inviteId = revokeInviteId;
+    setRevokeInviteId(null);
 
     try {
       const token = await getAccessToken();
@@ -246,10 +233,10 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
   return (
     <WindowFrame
       title={`📨 Invites - ${room.display_name}`}
-      width={450}
-      height={500}
-      initialX={200}
-      initialY={100}
+      width={480}
+      height={580}
+      initialX={140}
+      initialY={60}
       zIndex={1002}
       onClose={onClose}
     >
@@ -266,7 +253,7 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
                   </QRContainer>
                   <InviteUrl>{inviteUrl}</InviteUrl>
                   <ButtonRow>
-                    <CopyButton onClick={() => handleCopyInvite(inv)}>📋 Copy Link</CopyButton>
+                    <PrimaryButton onClick={() => handleCopyInvite(inv)}>📋 Copy Link</PrimaryButton>
                   </ButtonRow>
                 </div>
               );
@@ -291,9 +278,9 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
                   maxLength={50}
                 />
               </Field>
-              <Button onClick={handleGenerate} disabled={generating}>
+              <Button98 onClick={handleGenerate} disabled={generating}>
                 {generating ? '...' : 'Generate'}
-              </Button>
+              </Button98>
             </GenerateForm>
           </Section>
         )}
@@ -314,7 +301,7 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
                     </InviteStatus>
                   </div>
                   {!inv.redeemed && !inv.revoked && (
-                    <Button onClick={() => handleRevoke(inv.invite_id)}>Revoke</Button>
+                    <Button98 onClick={() => handleRevoke(inv.invite_id)}>Revoke</Button98>
                   )}
                 </InviteItem>
               ))
@@ -322,6 +309,17 @@ export const RoomInvitesDialog: React.FC<RoomInvitesDialogProps> = ({ room, onCl
           </InviteList>
         </Section>
       </DialogContainer>
+
+      {revokeInviteId && (
+        <ConfirmDialog
+          title="Revoke Invite"
+          message="Revoke this invite? It will no longer be usable."
+          icon="⚠️"
+          confirmText="Revoke"
+          onConfirm={confirmRevoke}
+          onCancel={() => setRevokeInviteId(null)}
+        />
+      )}
     </WindowFrame>
   );
 };
