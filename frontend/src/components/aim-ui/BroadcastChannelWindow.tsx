@@ -14,7 +14,7 @@ import { aimTheme } from '../../theme/aim-theme';
 import apiClient from '../../utils/api-client';
 import { endpoints } from '../../config/api-endpoints';
 import { encryptBroadcast } from '../../utils/broadcast-e2ee';
-import { getBroadcastKey } from '../../utils/broadcast-key-store';
+import { getBroadcastKey, saveBroadcastKey } from '../../utils/broadcast-key-store';
 import { useAppSyncEvents } from '../../hooks/useAppSyncEvents';
 
 interface BroadcastChannelWindowProps {
@@ -140,18 +140,23 @@ export const BroadcastChannelWindow: React.FC<BroadcastChannelWindowProps> = ({
 
   const handleRecoverKey = (urlOrKey: string) => {
     const trimmed = urlOrKey.trim();
+    if (!trimmed) return;
     const hashIdx = trimmed.indexOf('#');
     const key = hashIdx >= 0 ? trimmed.slice(hashIdx + 1) : trimmed;
-    if (key) {
-      setRecoveredKey(key);
-      // Persist so it survives future refreshes
-      try {
-        const stored = JSON.parse(localStorage.getItem('bw:bc:encKeys') || '{}');
-        stored[channelId] = key;
-        localStorage.setItem('bw:bc:encKeys', JSON.stringify(stored));
-      } catch { /* ignore */ }
-      toast.success('Encryption key recovered');
+    // Validate: key must look like a base64url string, not a URL or random text
+    if (!key || key.startsWith('http') || key.includes('/') || key.includes(' ') || key.length < 20) {
+      toast.error('That doesn\u2019t look like an encryption key. Paste the full read URL (with the #key part) or just the key.');
+      return;
     }
+    setRecoveredKey(key);
+    // Persist so it survives future refreshes
+    try {
+      const stored = JSON.parse(localStorage.getItem('bw:bc:encKeys') || '{}');
+      stored[channelId] = key;
+      localStorage.setItem('bw:bc:encKeys', JSON.stringify(stored));
+    } catch { /* ignore */ }
+    saveBroadcastKey(channelId, key).catch(() => {});
+    toast.success('Encryption key recovered');
   };
 
   // Real-time: subscribe to broadcast channel events
