@@ -4,7 +4,7 @@
  * File size: ~80 lines
  */
 
-import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
+import { Stack, StackProps, CfnOutput, Duration, Expiration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as appsync from 'aws-cdk-lib/aws-appsync';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -36,7 +36,10 @@ export class AppSyncStack extends Stack {
       apiName: NamingUtils.getResourceName('events', environment),
       authorizationConfig: {
         authProviders: [
-          { authorizationType: appsync.AppSyncAuthorizationType.API_KEY },
+          {
+            authorizationType: appsync.AppSyncAuthorizationType.API_KEY,
+            apiKeyConfig: { expires: Expiration.after(Duration.days(365)) },
+          },
           { authorizationType: appsync.AppSyncAuthorizationType.IAM },
         ],
         connectionAuthModeTypes: [appsync.AppSyncAuthorizationType.API_KEY],

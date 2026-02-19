@@ -62,9 +62,18 @@ export const useMessagePolling = (): MessagePollingResult => {
   }, []);
 
   // Handle real-time message event from AppSync
-  const handleMessageEvent = useCallback((_data: unknown, channel: string) => {
-    // Extract link_id from channel: /messages/link/{link_id}
-    const linkId = channel.split('/').pop()?.replace(/-/g, '_'); // Restore underscores
+  const handleMessageEvent = useCallback((data: unknown, channel: string) => {
+    // Extract link_id from event payload (preferred — the backend includes the original
+    // unsanitized link_id in every MessageEvent). Avoids lossy channel name reversal
+    // where replace(/-/g, '_') would corrupt IDs that naturally contain dashes.
+    let linkId: string | undefined;
+    if (data && typeof data === 'object' && 'link_id' in data) {
+      linkId = (data as { link_id: string }).link_id;
+    }
+    if (!linkId) {
+      // Fallback: extract from channel (best-effort, may not match original ID exactly)
+      linkId = channel.split('/').pop();
+    }
     if (!linkId) return;
 
     console.info('[MessagePolling] Real-time message event for link:', linkId);
